@@ -1,4 +1,6 @@
 # DeepRacer On The Spot
+this repo is just a few changes on top to the work done [here](https://github.com/aws-deepracer-community/deepracer-on-the-spot)
+
 Simple cloudformation templates to assist in creating ec2 instances for deep racer learning, with automated training start/end and up to 10X savings over training in console (when using ec2 spot instance). This is a wrapper around LarsLL's deepracer-for-cloud https://aws-deepracer-community.github.io/deepracer-for-cloud/ to make it very easy to start training in the AWS Console and take advantage of all amazing tools the deepracer-for-cloud repo gives you. 
 
 Training on an EC2 has many advantages:
