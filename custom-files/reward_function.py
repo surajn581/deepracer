@@ -160,8 +160,8 @@ def reward_function(params):
     reward = float(calculate_reward(params))
 
     if reward <=0:
-        10/(1 + np.exp(np.abs(reward)/100) )
+        ans = 10/(1 + np.exp(np.abs(reward)/100) )
     if reward >=0:
-        100/(1 + np.exp(np.abs(reward)/100) )
+        ans = 100/(1 + np.exp(np.abs(reward)/100) )
 
-    return reward
+    return ans
