@@ -29,6 +29,7 @@ params = {
 import math
 import numpy as np
 from scipy import signal
+from sklearn.preprocessing import minmax_scale
 
 def distance(p1, p2):
     """ Euclidean distance between two points """ 
@@ -157,4 +158,11 @@ def calculate_reward(params):
     return float(score_steer_to_point_ahead(params))
 
 def reward_function(params):
-    return float(calculate_reward(params))
+    reward = float(calculate_reward(params))
+
+    if reward <=0:
+        10/(1 + np.exp(np.abs(reward)/100) )
+    if reward >=0:
+        100/(1 + np.exp(np.abs(reward)/100) )
+
+    return reward
