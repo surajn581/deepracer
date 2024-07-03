@@ -29,7 +29,6 @@ params = {
 import math
 import numpy as np
 from scipy import signal
-from sklearn.preprocessing import minmax_scale
 
 def distance(p1, p2):
     """ Euclidean distance between two points """ 
