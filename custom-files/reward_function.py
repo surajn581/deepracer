@@ -66,7 +66,7 @@ def smoothen(waypoints):
     return smoothPath
 
 def _get_waypoints(params):
-    return smoothPath( up_sample( params['waypoints'] ) )
+    return smoothen( up_sample( params['waypoints'] ) )
 
 def distance(p1, p2):
     """ Euclidean distance between two points """ 
@@ -84,7 +84,7 @@ def normalize_angle_to_360(angle):
         return 360 + angle
     return angle
 
-def up_sample(waypoints, factor):
+def up_sample(waypoints, factor = 10):
     """
     Adds extra waypoints in between provided waypoints
     :param waypoints:
@@ -93,7 +93,7 @@ def up_sample(waypoints, factor):
     """
     return [ list(point) for point in list( signal.resample(np.array(waypoints), len(waypoints) * factor) ) ]
 
-def get_waypoints(params, scaling_factor = 10):
+def get_waypoints(params):
     """ Way-points """
     if params['is_reversed']: # driving clock wise.
         waypoints = list(reversed(_get_waypoints(params)))
