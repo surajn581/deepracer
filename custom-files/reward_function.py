@@ -30,6 +30,44 @@ import math
 import numpy as np
 from scipy import signal
 
+smoothPath = []
+
+def smoothen(waypoints):
+    global smoothPath
+    if smoothPath:
+        return smoothPath
+    
+    smoothPath = []
+    i = 0
+    range_factor = 6
+    avg_factor = 2 * range_factor + 1
+    num_of_waypoints = len(waypoints)
+
+    for point in waypoints:
+        counter = 0
+        estimated_x_cord = point[0]
+        estimated_y_cord = point[1]
+        while counter < range_factor:
+            estimated_x_cord += waypoints[(i + (counter + 1)) % num_of_waypoints][0]
+            estimated_x_cord += waypoints[(i - (counter + 1)) % num_of_waypoints][0]
+
+            estimated_y_cord += waypoints[(i + (counter + 1)) % num_of_waypoints][1]
+            estimated_y_cord += waypoints[(i - (counter + 1)) % num_of_waypoints][1]
+            counter += 1
+
+        estimated_x_cord = estimated_x_cord / avg_factor
+        estimated_y_cord = estimated_y_cord / avg_factor
+
+
+        smoothPath.append([estimated_x_cord, estimated_y_cord])
+
+        i += 1
+
+    return smoothPath
+
+def _get_waypoints(params):
+    return smoothPath( up_sample( params['waypoints'] ) )
+
 def distance(p1, p2):
     """ Euclidean distance between two points """ 
     return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
@@ -53,21 +91,15 @@ def up_sample(waypoints, factor):
     :param factor: integer. E.g. 3 means that the resulting list has 3 times as many points.
     :return:
     """
-    return list( signal.resample(np.array(waypoints), len(waypoints) * factor) )
+    return [ list(point) for point in list( signal.resample(np.array(waypoints), len(waypoints) * factor) ) ]
 
-def get_waypoints(params, scaling_factor):
+def get_waypoints(params, scaling_factor = 10):
     """ Way-points """
     if params['is_reversed']: # driving clock wise.
-        waypoints = list(reversed(params['waypoints']))
+        waypoints = list(reversed(_get_waypoints(params)))
     else: # driving counter clock wise.
-        waypoints = params['waypoints']    
+        waypoints = _get_waypoints(params)    
     waypoints = waypoints[params["closest_waypoints"][1]: ]
-    # starting = (params["x"], params["y"])
-
-    # waypoints = list(starting) + waypoints
-
-    # increased_precision = up_sample(waypoints, scaling_factor)
-    # increased_precision.pop(0)
     return waypoints
 
 def calculate_angle(p1, p2, p3):
@@ -92,13 +124,9 @@ def get_turn_points(coordinates):
             turn_points.append(coordinates[i])
     return turn_points
 
-def target_angle(params):
-    wp = get_waypoints(params, 2)
-    return angle(wp[0], wp[1])    
-
 def is_a_turn_coming_up( params ):
     next_way_point = params["closest_waypoints"][1]
-    if next_way_point in get_turn_points( params['waypoints'] ):
+    if next_way_point in get_turn_points( _get_waypoints(params) ):
         return True
     return False
 
@@ -116,7 +144,7 @@ def is_steps_favorable(params):
 
 def get_target_heading_degree_reward(params):
     # reward range 0-5
-    tx, ty = get_waypoints(params,2)[0]
+    tx, ty = get_waypoints(params)[0]
     car_x, car_y = params['x'], params['y']
     heading = params['heading']
     target_angle = angle((car_x, car_y), (tx, ty))
@@ -132,15 +160,16 @@ def is_progress_favorable(params):
     return params["progress"] / 10
 
 def off_center_penalty( params ):
-    ''' function to encourage the model to stay close to the track center when there are no curves coming up'''
-    #TODO check how we can improve this logic
-    threshold = params['track_width']*0.1
-    distance_from_center = params[ 'distance_from_center' ]
-    path_is_straight = not is_a_turn_coming_up( params )
-    threshold = params['track_width'] * ( 0.1 if path_is_straight else 0.25 )
-    # if path is straight then greater distance from center will be penalised when the distance is greater than threshold
-    # and if the distance from center is less than threshold, a reward of 10 will be given
-    return -20*distance_from_center if distance_from_center>threshold else 10
+    return 0
+    # ''' function to encourage the model to stay close to the track center when there are no curves coming up'''
+    # #TODO check how we can improve this logic
+    # threshold = params['track_width']*0.1
+    # distance_from_center = params[ 'distance_from_center' ]
+    # path_is_straight = not is_a_turn_coming_up( params )
+    # threshold = params['track_width'] * ( 0.1 if path_is_straight else 0.25 )
+    # # if path is straight then greater distance from center will be penalised when the distance is greater than threshold
+    # # and if the distance from center is less than threshold, a reward of 10 will be given
+    # return -20*distance_from_center if distance_from_center>threshold else 10
 
 def score_steer_to_point_ahead(params):
     heading_reward      = get_target_heading_degree_reward(params)
