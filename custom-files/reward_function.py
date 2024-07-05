@@ -67,7 +67,7 @@ def _get_waypoints(params):
     global smoothPath
     if smoothPath:
         return smoothPath
-    smoothPath = smoothen( up_sample( params['waypoints'], 1 ) )
+    smoothPath = smoothen( up_sample( params['waypoints'] ) )
     return smoothPath
 
 def waypoint_at(params, index):
@@ -158,10 +158,10 @@ def is_higher_speed_favorable(params):
 
     # base reward * speed if straight path
     # base reward / speed if turn is comming up
-    reward = reward * ( params["speed"] ** (-2 if is_a_turn_coming_up( params ) else 1) )
+    reward = reward * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
 
     if not is_heading_correct(params):
-        reward*=-0.1
+        reward*=0.01
     
     return reward
 
@@ -179,7 +179,7 @@ def is_steps_favorable(params):
     reward = 10*progress/float(steps)
 
     if progress > 90 and steps<300:
-        reward*=1.1
+        reward+=10
 
     return float(reward)
 
@@ -218,7 +218,7 @@ def get_heading_reward(params):
     # Initialize the reward with typical value
     reward = 10
     if not is_heading_correct(params):
-        reward = -1
+        reward *= 0.01
     return float(reward)
 
 def is_progress_favorable(params):
@@ -226,7 +226,7 @@ def is_progress_favorable(params):
     output range: 0 to 1
     '''
     # progress range is 1-100 > reward range is 0-1
-    return params["progress"] / 10
+    return params["progress"] / 100
 
 def following_smooth_path_reward(params):
     '''
@@ -236,7 +236,7 @@ def following_smooth_path_reward(params):
     next = waypoint_at( params, params['closest_waypoints'][1] )
     self = (params['x'], params['y'])
     distance = distanceFromLine( prev, next, self )
-    return 5/float(distance)
+    return 10/( (1+float(distance))**4 )
 
 def score_steer_to_point_ahead(params):
     heading_reward          = normalize_reward( get_heading_reward(params) )
