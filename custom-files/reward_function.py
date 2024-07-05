@@ -155,9 +155,15 @@ def distanceFromLine(p1, p2, p3):
 def is_higher_speed_favorable(params):
     """ no high difference in heading  """
     reward = 10.0
+
     # base reward * speed if straight path
     # base reward / speed if turn is comming up
-    return reward * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
+    reward = reward * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
+
+    if not is_heading_correct(params):
+        reward*=0.01
+    
+    return reward
 
 def is_steps_favorable(params):
     # if number of steps range (1-150) > (0.66 - 100)
@@ -183,14 +189,7 @@ def is_steps_favorable(params):
 
     return float(reward)
 
-def get_heading_reward(params):
-    ###############################################################################
-    '''
-    Example of using waypoints and heading to make the car point in the right direction
-    '''
-    # Initialize the reward with typical value
-    reward = 10
-
+def is_heading_correct(params):
     # Read input variables
     waypoints = _get_waypoints(params)
     closest_waypoints = params['closest_waypoints']
@@ -213,8 +212,18 @@ def get_heading_reward(params):
     # Penalize the reward if the difference is too large
     DIRECTION_THRESHOLD = 10.0
     if direction_diff > DIRECTION_THRESHOLD:
-        reward *= 0.5
+        return False
+    return True
 
+def get_heading_reward(params):
+    ###############################################################################
+    '''
+    Example of using waypoints and heading to make the car point in the right direction
+    '''
+    # Initialize the reward with typical value
+    reward = 10
+    if not is_heading_correct(params):
+        reward *= 0.01
     return float(reward)
 
 def is_progress_favorable(params):
@@ -229,26 +238,30 @@ def following_smooth_path_reward(params):
     return 5/float(distance)
 
 def score_steer_to_point_ahead(params):
-    heading_reward          = get_heading_reward(params)
-    steps_reward            = is_steps_favorable(params)
-    progress_reward         = is_progress_favorable(params)
-    speed_reward            = is_higher_speed_favorable(params)
-    on_smooth_track_reward  = following_smooth_path_reward(params)
-    reward                  = (speed_reward) * (heading_reward) + steps_reward + progress_reward + (3*on_smooth_track_reward)
+    heading_reward          = normalize_reward( get_heading_reward(params) )
+    steps_reward            = normalize_reward( is_steps_favorable(params) )
+    progress_reward         = normalize_reward( is_progress_favorable(params) )
+    speed_reward            = normalize_reward( is_higher_speed_favorable(params) )
+    on_smooth_track_reward  = normalize_reward( following_smooth_path_reward(params) )
+    reward                  = speed_reward + heading_reward + steps_reward + progress_reward + (3*on_smooth_track_reward)
+    return reward
+
+def normalize_reward(reward):
+    sign = 1 if reward >=0 else -1
+
+    if reward <=0:
+        reward = 1/(1 + np.exp(-np.abs(reward)/1000) )
+    if reward >=0:
+        reward = (math.log2(reward)*2)/(1 + np.exp(-np.abs(reward)/100) )
+    reward = reward**2
+    reward = sign*(1 - reward) if sign < 0 else reward
     return reward
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
-        return -5.0
+        return -1.0
     return float(score_steer_to_point_ahead(params))
 
 def reward_function(params):
     reward = float(calculate_reward(params))
-
-    if reward <=0:
-        ans = 10/(1 + np.exp(np.abs(reward)/100) )
-        ans*=-1
-    if reward >=0:
-        ans = 100/(1 + np.exp(np.abs(reward)/100) )
-
-    return ans
+    return normalize_reward( reward )
