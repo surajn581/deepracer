@@ -67,7 +67,7 @@ def _get_waypoints(params):
     global smoothPath
     if smoothPath:
         return smoothPath
-    smoothPath = smoothen( up_sample( params['waypoints'] ) )
+    smoothPath = smoothen( up_sample( params['waypoints'], 1 ) )
     return smoothPath
 
 def waypoint_at(params, index):
@@ -158,16 +158,15 @@ def is_higher_speed_favorable(params):
 
     # base reward * speed if straight path
     # base reward / speed if turn is comming up
-    reward = reward * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
+    reward = reward * ( params["speed"] ** (-2 if is_a_turn_coming_up( params ) else 1) )
 
     if not is_heading_correct(params):
-        reward*=0.01
+        reward*=-0.1
     
     return reward
 
 def is_steps_favorable(params):
-    # if number of steps range (1-150) > (0.66 - 100)
-    # if number of steps range (1-900) > (0.11 - 100)
+    # if max steps = 500 then range: 0 - 100
     #############################################################################
     '''
     Example of using steps and progress
@@ -177,15 +176,10 @@ def is_steps_favorable(params):
     steps = params['steps']
     progress = params['progress']
 
-    # Total num of steps we want the car to finish the lap, it will vary depends on the track length
-    TOTAL_NUM_STEPS = 300
+    reward = 10*progress/float(steps)
 
-    # Initialize the reward with typical value
-    reward = 1.0
-
-    # Give additional reward if the car pass every 100 steps faster than expected
-    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
-        reward += 10.0
+    if progress > 90 and steps<300:
+        reward*=1.1
 
     return float(reward)
 
@@ -219,18 +213,25 @@ def get_heading_reward(params):
     ###############################################################################
     '''
     Example of using waypoints and heading to make the car point in the right direction
+    output range: 0.1 to 10
     '''
     # Initialize the reward with typical value
     reward = 10
     if not is_heading_correct(params):
-        reward *= 0.01
+        reward = -1
     return float(reward)
 
 def is_progress_favorable(params):
+    '''
+    output range: 0 to 1
+    '''
     # progress range is 1-100 > reward range is 0-1
-    return params["progress"] / 100
+    return params["progress"] / 10
 
 def following_smooth_path_reward(params):
+    '''
+    output range: 0 to 1.066
+    '''
     prev = waypoint_at( params, params['closest_waypoints'][0] )
     next = waypoint_at( params, params['closest_waypoints'][1] )
     self = (params['x'], params['y'])
@@ -248,7 +249,8 @@ def score_steer_to_point_ahead(params):
 
 def normalize_reward(reward):
     sign = 1 if reward >=0 else -1
-
+    if reward == 0:
+        return 0
     if reward <=0:
         reward = 1/(1 + np.exp(-np.abs(reward)/1000) )
     if reward >=0:
@@ -259,7 +261,7 @@ def normalize_reward(reward):
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
-        return -1.0
+        return -500.0
     return float(score_steer_to_point_ahead(params))
 
 def reward_function(params):
