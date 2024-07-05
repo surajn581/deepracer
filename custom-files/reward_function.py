@@ -32,45 +32,47 @@ from scipy import signal
 
 smoothPath = []
 
-def smoothen(waypoints):
+def calc_distance(prev_point, next_point):
+    delta_x = next_point[0] - prev_point[0]
+    delta_y = next_point[1] - prev_point[1]
+    return math.hypot(delta_x, delta_y)
+
+def smoothen(center_line, max_offset = 0.45305, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    if max_offset < 0.0001:
+        return center_line
+    if skip_step < 1:
+        skip_step = 1
+    smoothed_line = center_line
+    for i in range(0, iterations):
+        smoothed_line = smooth_central_line_internal(center_line, max_offset, smoothed_line, pp, p, c, n, nn, skip_step)
+    return smoothed_line
+
+def smooth_central_line_internal(center_line, max_offset, smoothed_line, pp, p, c, n, nn, skip_step):
+    length = len(center_line)
+    new_line = [[0.0 for _ in range(2)] for _ in range(length)]
+    for i in range(0, length):
+        wpp = smoothed_line[(i - 2 * skip_step + length) % length]
+        wp = smoothed_line[(i - skip_step + length) % length]
+        wc = smoothed_line[i]
+        wn = smoothed_line[(i + skip_step) % length]
+        wnn = smoothed_line[(i + 2 * skip_step) % length]
+        new_line[i][0] = pp * wpp[0] + p * wp[0] + c * wc[0] + n * wn[0] + nn * wnn[0]
+        new_line[i][1] = pp * wpp[1] + p * wp[1] + c * wc[1] + n * wn[1] + nn * wnn[1]
+        while calc_distance(new_line[i], center_line[i]) >= max_offset:
+            new_line[i][0] = (0.98 * new_line[i][0]) + (0.02 * center_line[i][0])
+            new_line[i][1] = (0.98 * new_line[i][1]) + (0.02 * center_line[i][1])
+    return new_line
+
+def _get_waypoints(params):
     global smoothPath
     if smoothPath:
         return smoothPath
-    
-    smoothPath = []
-    i = 0
-    range_factor = 6
-    avg_factor = 2 * range_factor + 1
-    num_of_waypoints = len(waypoints)
-
-    for point in waypoints:
-        counter = 0
-        estimated_x_cord = point[0]
-        estimated_y_cord = point[1]
-        while counter < range_factor:
-            estimated_x_cord += waypoints[(i + (counter + 1)) % num_of_waypoints][0]
-            estimated_x_cord += waypoints[(i - (counter + 1)) % num_of_waypoints][0]
-
-            estimated_y_cord += waypoints[(i + (counter + 1)) % num_of_waypoints][1]
-            estimated_y_cord += waypoints[(i - (counter + 1)) % num_of_waypoints][1]
-            counter += 1
-
-        estimated_x_cord = estimated_x_cord / avg_factor
-        estimated_y_cord = estimated_y_cord / avg_factor
-
-
-        smoothPath.append([estimated_x_cord, estimated_y_cord])
-
-        i += 1
-
+    smoothPath = smoothen( up_sample( params['waypoints'] ) )
     return smoothPath
 
-def _get_waypoints(params):
-    return smoothen( up_sample( params['waypoints'] ) )
-
 def distance(p1, p2):
-    """ Euclidean distance between two points """ 
-    return ((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2) ** 0.5
+    """ Euclidean distance between two points """
+    return calc_distance(p1, p2)
 
 def angle(p1, p2):
     """
@@ -133,7 +135,7 @@ def is_a_turn_coming_up( params ):
 def is_higher_speed_favorable(params):
     """ no high difference in heading  """
     # speed range 2-4 > 0 - 6
-    return 20 * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
+    return 10 * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
 
 def is_steps_favorable(params):
     # if number of steps range (1-150) > (0.66 - 100)
@@ -152,7 +154,7 @@ def get_target_heading_degree_reward(params):
     diff = 360-diff if diff>180 else diff
     threshold = 5
     if diff > threshold:
-        return -5
+        return -1
     return 5
 
 def is_progress_favorable(params):
@@ -182,7 +184,7 @@ def score_steer_to_point_ahead(params):
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
-        return -500.0
+        return -5.0
     return float(score_steer_to_point_ahead(params))
 
 def reward_function(params):
@@ -190,6 +192,7 @@ def reward_function(params):
 
     if reward <=0:
         ans = 10/(1 + np.exp(np.abs(reward)/100) )
+        ans = ans * -1
     if reward >=0:
         ans = 100/(1 + np.exp(np.abs(reward)/100) )
 
