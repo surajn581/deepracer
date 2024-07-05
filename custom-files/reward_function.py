@@ -1,43 +1,59 @@
-"""
-params = {
-    "all_wheels_on_track": Boolean,        # flag to indicate if the agent is on the track
-    "x": float,                            # agent's x-coordinate in meters
-    "y": float,                            # agent's y-coordinate in meters
-    "closest_objects": [int, int],         # zero-based indices of the two closest objects to the agent's current position of (x, y).
-    "closest_waypoints": [int, int],       # indices of the two nearest waypoints.
-    "distance_from_center": float,         # distance in meters from the track center 
-    "is_crashed": Boolean,                 # Boolean flag to indicate whether the agent has crashed.
-    "is_left_of_center": Boolean,          # Flag to indicate if the agent is on the left side to the track center or not. 
-    "is_offtrack": Boolean,                # Boolean flag to indicate whether the agent has gone off track.
-    "is_reversed": Boolean,                # flag to indicate if the agent is driving clockwise (True) or counter clockwise (False).
-    "heading": float,                      # agent's yaw in degrees
-    "objects_distance": [float, ],         # list of the objects' distances in meters between 0 and track_length in relation to the starting line.
-    "objects_heading": [float, ],          # list of the objects' headings in degrees between -180 and 180.
-    "objects_left_of_center": [Boolean, ], # list of Boolean flags indicating whether elements' objects are left of the center (True) or not (False).
-    "objects_location": [(float, float),], # list of object locations [(x,y), ...].
-    "objects_speed": [float, ],            # list of the objects' speeds in meters per second.
-    "progress": float,                     # percentage of track completed
-    "speed": float,                        # agent's speed in meters per second (m/s)
-    "steering_angle": float,               # agent's steering angle in degrees
-    "steps": int,                          # number steps completed
-    "track_length": float,                 # track length in meters.
-    "track_width": float,                  # width of the track
-    "waypoints": [(float, float), ]        # list of (x,y) as milestones along the track center
-
-}
-"""
 import math
-import numpy as np
-from scipy import signal
 
-smoothPath = []
+# constants
+MIN_SPEED = 2.1                     # Model specific. Critical to keep in sync with model's actions space
+MAX_SPEED = 4.0                     # Model specific. Critical to keep in sync with model's actions space
+MAX_STEERING = 30.0                 # Model specific. Critical to keep in sync with model's actions space
+MAX_DIRECTION_DIFF = 30.0
+MAX_STEPS_TO_DECAY_PENALTY = 0      # Value of zero or below disables penalty for having wheels off track
+MAX_STEPS_TO_PROGRESS_RATIO = 1.8   # Desired maximum number of steps to be taken for 1% of progress
+RACING_LINE_SMOOTHING_STEPS = 1     # Track specific. Critical to keep in sync with optimal racing line
+RACING_LINE_WIDTH_FREE_ZONE = 0.10  # Percentage of racing line width for 100% of "being on track" reward
+RACING_LINE_WIDTH_SAFE_ZONE = 0.25  # Percentage of racing line width for distance relative "being on track" reward
+RACING_LINE_VS_CENTRAL_LINE = 0.85  # Number in range of [0, 1]. Zero forces to follow central line, 1 - racing line
+SENSITIVITY_EXP_CNT_DISTANCE = 3.00  # Higher number gives more freedom on the track, can cause zig-zags
+SENSITIVITY_EXP_ACTION_SPEED = 3.00  # Higher number increases penalty for low speed
+SENSITIVITY_EXP_ACTION_STEER = 0.70  # Higher number decreases penalty for high steering
+SENSITIVITY_EXP_DIR_STEERING = 2.00  # Lower number accelerates penalty increase for not following track direction
+TOTAL_PENALTY_ON_OFF_TRACK = 0.999999  # Maximum penalty in percentage of total reward for being off track
+TOTAL_PENALTY_ON_BAD_SPEED = 0.500000  # Maximum penalty in percentage of total reward for being off track
+TOTAL_PENALTY_ON_OFF_DIR_STEER = 0.35  # Maximum penalty in percentage of total reward for off directional steering
+REWARD_WEIGHT_PROG_STEP = 35
+REWARD_WEIGHT_EXP_SPEED = 25
+REWARD_WEIGHT_DIR_STEER = 20
+REWARD_WEIGHT_ON_TRACK = 15
+MAX_TOTAL_REWARD = REWARD_WEIGHT_ON_TRACK + REWARD_WEIGHT_PROG_STEP + REWARD_WEIGHT_DIR_STEER + REWARD_WEIGHT_EXP_SPEED
 
+# static
+smoothed_central_line = None
+was_off_track_at_step = -MAX_STEPS_TO_DECAY_PENALTY
+previous_steps_reward = MAX_TOTAL_REWARD
+
+
+# Range [-180:+180]
+def calc_slope(prev_point, next_point):
+    return math.degrees(math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0]))
+
+
+# Range [0:180]
+def calc_direction_diff(steering, heading, track_direction):
+    # Calculate the difference between the track direction and the heading direction of the car
+    direction_diff = steering + heading - track_direction
+    if direction_diff > 180.0:
+        direction_diff = direction_diff - 360.0
+    if direction_diff < -180.0:
+        direction_diff = direction_diff + 360.0
+    return abs(direction_diff)
+
+
+# Returns distance between two points in meters
 def calc_distance(prev_point, next_point):
     delta_x = next_point[0] - prev_point[0]
     delta_y = next_point[1] - prev_point[1]
     return math.hypot(delta_x, delta_y)
 
-def smoothen(center_line, max_offset = 0.45305, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+
+def smooth_central_line(center_line, max_offset, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
     if max_offset < 0.0001:
         return center_line
     if skip_step < 1:
@@ -46,6 +62,7 @@ def smoothen(center_line, max_offset = 0.45305, pp=0.10, p=0.05, c=0.70, n=0.05,
     for i in range(0, iterations):
         smoothed_line = smooth_central_line_internal(center_line, max_offset, smoothed_line, pp, p, c, n, nn, skip_step)
     return smoothed_line
+
 
 def smooth_central_line_internal(center_line, max_offset, smoothed_line, pp, p, c, n, nn, skip_step):
     length = len(center_line)
@@ -63,137 +80,108 @@ def smooth_central_line_internal(center_line, max_offset, smoothed_line, pp, p, 
             new_line[i][1] = (0.98 * new_line[i][1]) + (0.02 * center_line[i][1])
     return new_line
 
-def _get_waypoints(params):
-    global smoothPath
-    if smoothPath:
-        return smoothPath
-    smoothPath = smoothen( up_sample( params['waypoints'] ) )
-    return smoothPath
 
-def distance(p1, p2):
-    """ Euclidean distance between two points """
-    return calc_distance(p1, p2)
+# Calculate distance between current point and closest point on line between prev_point and next_point
+def calc_distance_from_line(curr_point, prev_point, next_point):
+    distance_cp_to_pp = calc_distance(curr_point, prev_point)  # b
+    distance_cp_to_np = calc_distance(curr_point, next_point)  # a
+    distance_pp_to_np = calc_distance(prev_point, next_point)  # c
+    # cos A = (b^2 + c^2 - a^2) / 2bc
+    angle_pp = math.acos((distance_cp_to_pp * distance_cp_to_pp + distance_pp_to_np * distance_pp_to_np
+                          - distance_cp_to_np * distance_cp_to_np) / (2 * distance_cp_to_pp * distance_pp_to_np))
+    # b / sin(Pi/2) = d / sin(A)
+    return distance_cp_to_pp * math.sin(angle_pp)
 
-def angle(p1, p2):
-    """
-    """
-    dy = p2[1]-p1[1]
-    dx = p2[0]-p1[0]
-    return math.degrees(math.atan2(dy,dx))
 
-def normalize_angle_to_360(angle):
-    if angle < 0:
-        return 360 + angle
-    return angle
+def ema(prev, new, period):
+    k = 2.0 / (1.0 + period)
+    return (new - prev) * k + prev
 
-def up_sample(waypoints, factor = 10):
-    """
-    Adds extra waypoints in between provided waypoints
-    :param waypoints:
-    :param factor: integer. E.g. 3 means that the resulting list has 3 times as many points.
-    :return:
-    """
-    return [ list(point) for point in list( signal.resample(np.array(waypoints), len(waypoints) * factor) ) ]
 
-def get_waypoints(params):
-    """ Way-points """
-    if params['is_reversed']: # driving clock wise.
-        waypoints = list(reversed(_get_waypoints(params)))
-    else: # driving counter clock wise.
-        waypoints = _get_waypoints(params)    
-    waypoints = waypoints[params["closest_waypoints"][1]: ]
-    return waypoints
-
-def calculate_angle(p1, p2, p3):
-    # Calculate the angle between three points p1, p2, p3
-    angle = math.degrees(
-        math.atan2(p3[1] - p2[1], p3[0] - p2[0]) - math.atan2(p1[1] - p2[1], p1[0] - p2[0])
-    )
-    return angle % 360
-
-def get_turn_points(coordinates):
-    turn_points = []
-    window_size = 8
-    threshold_angle = 4.5  # Set a threshold angle to determine a significant turn
-
-    for i in range(len(coordinates) - window_size + 1):
-        window = coordinates[i : i + window_size]
-        angles = [
-            calculate_angle(window[j], window[j + 1], window[j + 2]) for j in range(window_size - 2)
-        ]
-        max_angle_change = abs( max(angles) - min(angles) )
-        if max_angle_change >= threshold_angle:
-            turn_points.append(coordinates[i])
-    return turn_points
-
-def is_a_turn_coming_up( params ):
-    next_way_point = params["closest_waypoints"][1]
-    if next_way_point in get_turn_points( _get_waypoints(params) ):
-        return True
-    return False
-
-def is_higher_speed_favorable(params):
-    """ no high difference in heading  """
-    # speed range 2-4 > 0 - 6
-    return 10 * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
-
-def is_steps_favorable(params):
-    # if number of steps range (1-150) > (0.66 - 100)
-    # if number of steps range (1-900) > (0.11 - 100)
-    if params['progress'] != 100:
-        return float( 50 / params["steps"] )
-    return float( 100 / params["steps"] )
-
-def get_target_heading_degree_reward(params):
-    # reward range 0-5
-    tx, ty = get_waypoints(params)[0]
-    car_x, car_y = params['x'], params['y']
-    heading = params['heading']
-    target_angle = angle((car_x, car_y), (tx, ty))
-    diff = abs( target_angle - heading )
-    diff = 360-diff if diff>180 else diff
-    threshold = 5
-    if diff > threshold:
-        return -1
-    return 5
-
-def is_progress_favorable(params):
-    # progress range is 1-100 > reward range is 0.1 - 10
-    return params["progress"] / 10
-
-def off_center_penalty( params ):
-    return 0
-    # ''' function to encourage the model to stay close to the track center when there are no curves coming up'''
-    # #TODO check how we can improve this logic
-    # threshold = params['track_width']*0.1
-    # distance_from_center = params[ 'distance_from_center' ]
-    # path_is_straight = not is_a_turn_coming_up( params )
-    # threshold = params['track_width'] * ( 0.1 if path_is_straight else 0.25 )
-    # # if path is straight then greater distance from center will be penalised when the distance is greater than threshold
-    # # and if the distance from center is less than threshold, a reward of 10 will be given
-    # return -20*distance_from_center if distance_from_center>threshold else 10
-
-def score_steer_to_point_ahead(params):
-    heading_reward      = get_target_heading_degree_reward(params)
-    steps_reward        = is_steps_favorable(params)
-    progress_reward     = is_progress_favorable(params)
-    speed_reward        = is_higher_speed_favorable(params)
-    track_center_reward = off_center_penalty(params)
-    reward              = (speed_reward) * (heading_reward) + steps_reward*progress_reward + (3*track_center_reward)
-    return reward
-
-def calculate_reward(params):
-    if params["is_offtrack"] or params["is_crashed"]:
-        return -5.0
-    return float(score_steer_to_point_ahead(params))
-
+# Reward function expected by AWS DeepRacer API
 def reward_function(params):
-    reward = float(calculate_reward(params))
+    track_width = params['track_width']
+    waypoints = params['waypoints']
+    # initialize central line
+    global smoothed_central_line
+    if smoothed_central_line is None:
+        max_offset = track_width * RACING_LINE_VS_CENTRAL_LINE * 0.5
+        smoothed_central_line = smooth_central_line(waypoints, max_offset, skip_step=RACING_LINE_SMOOTHING_STEPS)
+        # print("track_waypoints:", "track_width =", track_width,
+        #       "\ntrack_original =", waypoints, "\ntrack_smoothed =", smoothed_central_line)
 
-    if reward <=0:
-        ans = 10/(1 + np.exp(np.abs(reward)/100) )
-        ans = ans * -1
-    if reward >=0:
-        ans = 100/(1 + np.exp(np.abs(reward)/100) )
+    # re-initialize was_off_track_at_step
+    global was_off_track_at_step
+    steps = params['steps']
+    if steps < was_off_track_at_step:
+        was_off_track_at_step = -MAX_STEPS_TO_DECAY_PENALTY
+    if not params['all_wheels_on_track']:
+        was_off_track_at_step = steps
 
-    return ans
+    global previous_steps_reward
+    if steps <= 2:
+        previous_steps_reward = MAX_TOTAL_REWARD
+
+    # Calculate penalty for wheels being or have recently been off track
+    wheels_off_track_penalty = 1.0
+    if MAX_STEPS_TO_DECAY_PENALTY > 0:
+        wheels_off_track_penalty = min(steps - was_off_track_at_step, MAX_STEPS_TO_DECAY_PENALTY) / (
+            1.0 * MAX_STEPS_TO_DECAY_PENALTY)
+
+    # Reward on directional move to the next milestone
+    wp_length = len(smoothed_central_line)
+    wp_indices = params['closest_waypoints']
+    curr_point = [params['x'], params['y']]
+    prev_point = smoothed_central_line[wp_indices[0]]
+    next_point_1 = smoothed_central_line[(wp_indices[1] + 1) % wp_length]
+    next_point_2 = smoothed_central_line[(wp_indices[1] + 2) % wp_length]
+    next_point_3 = smoothed_central_line[(wp_indices[1] + 3) % wp_length]
+    track_direction_1 = calc_slope(prev_point, next_point_1)
+    track_direction_2 = calc_slope(prev_point, next_point_2)
+    track_direction_3 = calc_slope(prev_point, next_point_3)
+
+    heading = params['heading']  # Range: -180:+180
+    steering = params['steering_angle']  # Range: -30:30
+    direction_diff_ratio = (
+            0.20 * min((calc_direction_diff(steering, heading, track_direction_1) / MAX_DIRECTION_DIFF), 1.00) +
+            0.30 * min((calc_direction_diff(steering, heading, track_direction_2) / MAX_DIRECTION_DIFF), 1.00) +
+            0.50 * min((calc_direction_diff(steering, heading, track_direction_3) / MAX_DIRECTION_DIFF), 1.00))
+    dir_steering_ratio = 1.0 - pow(direction_diff_ratio, SENSITIVITY_EXP_DIR_STEERING)
+    reward_dir_steering = REWARD_WEIGHT_DIR_STEER * dir_steering_ratio
+
+    # Reward on speed relevant to track's direction
+    speed = params['speed']  # Range: 0.0:4.0
+    expect_speed_ratio = 1.0 - min(abs(track_direction_1 - track_direction_3), MAX_DIRECTION_DIFF) / MAX_DIRECTION_DIFF
+    actual_speed_ratio = max(min(speed - MIN_SPEED, 0), MAX_SPEED - MIN_SPEED) / (MAX_SPEED - MIN_SPEED)
+    speed_ratio = 1.0 - abs(expect_speed_ratio - actual_speed_ratio)
+    reward_exp_speed = REWARD_WEIGHT_EXP_SPEED * pow(speed_ratio, SENSITIVITY_EXP_ACTION_SPEED)
+
+    # Reward on close distance to the racing line
+    free_zone = track_width * RACING_LINE_WIDTH_FREE_ZONE * 0.5
+    safe_zone = track_width * RACING_LINE_WIDTH_SAFE_ZONE * 0.5
+    dislocation = calc_distance_from_line(curr_point, prev_point, next_point_1)
+    on_track_ratio = 0.0
+    if dislocation <= free_zone:
+        on_track_ratio = 1.0
+    elif dislocation <= safe_zone:
+        on_track_ratio = 1.0 - pow(dislocation / safe_zone, SENSITIVITY_EXP_CNT_DISTANCE)
+    reward_on_track = on_track_ratio * REWARD_WEIGHT_ON_TRACK
+
+    # Reward on good progress per step
+    progress = params['progress']
+    reward_prog_step = REWARD_WEIGHT_PROG_STEP * min(1.0, MAX_STEPS_TO_PROGRESS_RATIO * (progress / steps))
+
+    reward_total = reward_on_track + reward_exp_speed + reward_dir_steering + reward_prog_step
+    reward_total -= reward_total * (1.0 - dir_steering_ratio) * TOTAL_PENALTY_ON_OFF_DIR_STEER
+    reward_total -= reward_total * (1.0 - on_track_ratio) * TOTAL_PENALTY_ON_OFF_TRACK
+    reward_total -= reward_total * (1.0 - speed_ratio) * TOTAL_PENALTY_ON_BAD_SPEED
+    reward_total *= wheels_off_track_penalty
+
+    # print("rewards:" + (20 * "{:.4f}," + "{:.4f}").format(reward_total,
+    #     wheels_off_track_penalty, reward_on_track, reward_exp_speed, reward_dir_steering, reward_prog_step,
+    #     dislocation, track_direction_1, track_direction_2, track_direction_3, direction_diff_ratio,
+    #     waypoints[wp_indices[0]][0], waypoints[wp_indices[0]][1], prev_point[0], prev_point[1],
+    #     next_point_1[0], next_point_1[1], next_point_2[0], next_point_2[1], next_point_3[0], next_point_3[1]))
+
+    previous_steps_reward = ema(previous_steps_reward, reward_total, 3)
+    return float(0.0000001 + previous_steps_reward)
