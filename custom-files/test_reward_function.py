@@ -1,343 +1,161 @@
-# MUDR21-MODEL-4
 import math
-# Going fast parameters
-FUTURE_STEP = 7
-TURN_THRESHOLD_ANGLE = 12    
-SPEED_THRESHOLD_SLOW = 1.2  
-SPEED_THRESHOLD_FAST_1 = 1.5  
-SPEED_THRESHOLD_FAST_2 = 2
-SPEED_THRESHOLD_FAST_3 = 2.5
-FUTURE_STEP_STRAIGHT = 8
-TURN_THRESHOLD_STRAIGHT_ANGLE = 20    
-STEERING_THRESHOLD = 8 
-STRAIGHT_LINE_OPTIMAL_SPEED = 3
-STEEP_TURNING_OPTIMAL_SPEED = 1.8
-ACUTE_TURNING_OPTIMAL_SPEED = 1.8
-MEDIUM_TURNING_OPTIMAL_SPEED = 2.6
-LESS_TURNING_OPTIMAL_SPEED = 2.8
-STEEP_TURNING_ANGLE_THRESHOLD = 75
-ACUTE_TURNING_ANGLE_THRESHOLD = 75
-MEDIUM_TURNING_ANGLE_THRESHOLD = 45
-LESS_TURNING_ANGLE_THRESHOLD = 25
-previous_speed = 0
-previous_progress=0
-previous_progress_gain = 0
-WAYPOINTS_BEFORE=2
-WAYPOINTS_AFTER=3
-TOTAL_NUM_STEPS=230
-def reward_function(params):
-	# Read input parameters
-	track_width = params['track_width']
-	distance_from_center = params['distance_from_center']
-	all_wheels_on_track = params['all_wheels_on_track']
-	is_offtrack = params['is_offtrack']
-	speed = params['speed']
-	steering_angle = params['steering_angle']
-	abs_steering_angle = abs(params['steering_angle'])
-	is_left_of_center = params['is_left_of_center']
-	waypoints = params['waypoints']
-	closest_waypoints = params['closest_waypoints']
-	heading = params['heading']
-	progress = params['progress']
-	steps = params['steps']
-	track_length = params['track_length']
-	x = params["x"]
-	y = params["y"]
-	car_position = [x,y]
-	track_direction = get_track_direction(waypoints,closest_waypoints)
-	future_track_direction = get_future_track_direction(waypoints,closest_waypoints,FUTURE_STEP)
-	#direction_diff = get_direction_diff(track_direction,heading)
-	global previous_progress
-	global previous_progress_gain
-	global previous_speed
-	#Calculate 5 markers that are at varying distances away from the center line
-	marker_1 = 0.1 * track_width
-	marker_2 = 0.15 * track_width
-	marker_3 = 0.25 * track_width
-	marker_4 = 0.4 * track_width
-	marker_5 = 0.5 * track_width
-	
-	#print("progress", progress)
-	#print("steps", steps)
-	#print("speed", speed)
-	
-	#normalised_direction_diff = float(direction_diff/180)
-	normalised_distance_from_center = float(distance_from_center/track_width)/2
-	normalised_steering_angle = float(abs(steering_angle)/180)
-	normalised_speed = float(speed/4.0)
 
-	shortest_line_length, shortest_line_direction = get_shortest_straight_line_length_and_direction(waypoints,closest_waypoints)
-	distance_from_shortest_line = get_distance_from_shortest_straight_line(waypoints,closest_waypoints,car_position)
-	direction_diff = get_direction_diff(shortest_line_direction,heading)
-	#track_direction_diff = get_direction_diff(track_direction,future_track_direction)
-	track_direction_diff = get_direction_diff(shortest_line_direction,track_direction)
-	normalised_direction_diff = (direction_diff/180)
-	normalised_distance = (distance_from_shortest_line/track_width)/2
-	is_road_straight = is_straight_road_ahead(track_direction,future_track_direction)
-	progress_gain = progress - previous_progress
-	print("shortest line direction:" + str(shortest_line_direction) + " future direction:" + str(future_track_direction))
-	print(" direction diff with future is:",track_direction_diff)
-	print("heading and direction diff is:",direction_diff)
-	print("distance from shortest line:", distance_from_shortest_line)
-	print("marker_3 is:", marker_3)
-	#print("distaince is: " + str(distance_from_shortest_line) + " and normalised_distance is " + str(normalised_distance))
-	reward= 1.0
-	optimal_speed_reward = 0
-	progress_gain_reward = 0
-	faster_speed_reward = 0
-	
-	#reward = reward + (1 - normalised_direction_diff)
-	
-	if distance_from_shortest_line>marker_1:
-		print("car moving away/distance penalty applied")
-		reward = 0 - normalised_distance
-		
-	#if speed > previous_speed:
-	#        faster_speed_reward = 0
-			
-	#reward = reward + progress/steps
-			
-	if is_road_straight and distance_from_shortest_line<=marker_1 and steering_angle<=STEERING_THRESHOLD:
-		optimal_speed_reward = get_speed_reward(speed,STRAIGHT_LINE_OPTIMAL_SPEED)
-		if speed >= 0.7*STRAIGHT_LINE_OPTIMAL_SPEED and speed <= 1.1 * STRAIGHT_LINE_OPTIMAL_SPEED:
-			print("giving optimal_speed_reward")
-			optimal_speed_reward = optimal_speed_reward + speed
-		print("on straight road reward:",  optimal_speed_reward)
-		#reward = reward + optimal_speed_reward+faster_speed_reward
-	elif not is_road_straight and track_direction_diff<LESS_TURNING_ANGLE_THRESHOLD and distance_from_shortest_line<=marker_1:
-		optimal_speed_reward = get_speed_reward(speed,LESS_TURNING_OPTIMAL_SPEED)
-		if speed >= 0.7*LESS_TURNING_OPTIMAL_SPEED and speed <= 1.1 * LESS_TURNING_OPTIMAL_SPEED:
-			print("giving optimal_speed_reward")
-			optimal_speed_reward = optimal_speed_reward + speed
-		#reward = reward + optimal_speed_reward+faster_speed_reward
-		print("less turning reward:", optimal_speed_reward)
-	elif not is_road_straight and track_direction_diff<MEDIUM_TURNING_ANGLE_THRESHOLD and distance_from_shortest_line<=marker_1:
-		optimal_speed_reward = get_speed_reward(speed,MEDIUM_TURNING_OPTIMAL_SPEED)
-		if speed >= 0.7*MEDIUM_TURNING_OPTIMAL_SPEED and speed <= 1.1 * MEDIUM_TURNING_OPTIMAL_SPEED:
-			print("giving optimal_speed_reward")
-			optimal_speed_reward = optimal_speed_reward + speed
-		#reward = reward + optimal_speed_reward * (1-normalised_direction_diff)+faster_speed_reward
-		print("medium turning reward:", optimal_speed_reward)
-	elif not is_road_straight and track_direction_diff<STEEP_TURNING_ANGLE_THRESHOLD and distance_from_shortest_line<=marker_1:
-		optimal_speed_reward = get_speed_reward(speed,STEEP_TURNING_OPTIMAL_SPEED)
-		if speed >= 0.7*STEEP_TURNING_OPTIMAL_SPEED and speed <= 1.1 * STEEP_TURNING_OPTIMAL_SPEED:
-			print("giving optimal_speed_reward")
-			optimal_speed_reward = optimal_speed_reward + speed
-		#reward = reward + optimal_speed_reward * (1-(normalised_direction_diff*2))
-		print("steep turning reward:", optimal_speed_reward)
-	elif not is_road_straight and track_direction_diff>ACUTE_TURNING_ANGLE_THRESHOLD and distance_from_shortest_line<=marker_2:
-		optimal_speed_reward = get_speed_reward(speed,ACUTE_TURNING_OPTIMAL_SPEED)
-		#reward = reward + optimal_speed_reward * (1-(normalised_direction_diff*2))
-		if speed >= 0.7*ACUTE_TURNING_OPTIMAL_SPEED and speed <= 1.1 * ACUTE_TURNING_OPTIMAL_SPEED:
-			print("giving optimal_speed_reward")
-			optimal_speed_reward = optimal_speed_reward + speed
-		print("steep turning reward:", optimal_speed_reward)
-
-	reward = reward + optimal_speed_reward * (1-normalised_direction_diff)**2
-	
-	if (steps % 10) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
-		steps_reward = 2 * (1 + (progress/100) - (steps / TOTAL_NUM_STEPS))
-	else:
-		steps_reward = 0
-		
-	reward += steps_reward
-
-	progress_reward=0
-	if progress == 100 :
-		progress_reward += max(0.2, 1+((TOTAL_NUM_STEPS-steps)/TOTAL_NUM_STEPS))
-
-	reward += progress_reward
-	
-	print(f"steps_reward: {steps_reward} {progress_reward}")
-	
-
-	previous_progress_gain = progress_gain
-	previous_progress = progress
-	previous_speed = speed
-
-
-	if is_offtrack:
-		reward = 0.001
-	
-	return float(reward)
-	
-def get_speed_reward(speed, optimal_speed):
-	speed_deviation_ratio = abs(optimal_speed-speed)/optimal_speed
-	speed_deviation_penalty = speed_deviation_ratio*speed
-	speed_reward = (speed - speed_deviation_penalty)/4.0
-	#enhanced_speed_reward =  speed_reward**3 if speed_reward>=3 else speed_reward**2 if speed_reward>=2 else speed_reward
-	return speed_reward
-
-def is_car_turning_to_right_or_left(steering_angle):
-	if steering_angle < 0:
-		direction = "right"
-	else:
-		direction = "left"
-	
-	return direction
-	
-def is_car_turning_right(steering_angle):
-	return (is_car_turning_to_right_or_left(steering_angle)=="right")
-		
-def is_car_turning_left(steering_angle):
-	return (is_car_turning_to_right_or_left(steering_angle)=="left")
-		
-def is_car_heading_to_right_of_track(heading,track_direction):
-
-	if heading > 0 and track_direction > 0:
-		if track_direction > heading:
-			return True
-		else:
-			return False
-	elif heading > 0 and track_direction < 0 and track_direction < -90 :
-		return True
-	elif heading > 0 and track_direction < 0 and track_direction > -90 :
-		return False
-	elif heading < 0 and track_direction > 0 and heading > -90 :
-		return True
-	elif heading < 0 and track_direction > 0 and heading < -90 :
-		return False
-	elif heading < 0 and track_direction < 0:
-		if track_direction > heading:
-			return True
-		else:
-			return False
-			
-def is_car_moving_away_from_track_direction(steering_angle,heading,track_direction):
-
-	if is_car_heading_to_right_of_track(heading,track_direction) and is_car_turning_right(steering_angle):
-		return True
-	elif not is_car_heading_to_right_of_track(heading,track_direction) and is_car_turning_left(steering_angle):
-		return True
-	else:
-		return False
-	
-def get_track_direction(waypoints,closest_waypoints):
-	# Calculate the direction of the center line based on the closest waypoints
-	next_point = waypoints[closest_waypoints[1]]
-	prev_point = waypoints[closest_waypoints[0]]
-	
-	# Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
-	track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0])
-	# Convert to degree
-	track_direction = math.degrees(track_direction)
-	return track_direction
-	
-def get_direction_diff(direction_1,direction_2):
-	# Calculate the difference between 2 directions
-	direction_diff = abs(direction_1 - direction_2)
-	if direction_diff > 180:
-		direction_diff = 360 - direction_diff
-	return direction_diff
-	
-def get_direction_between_two_waypoints(fist_waypoint, second_waypoint):
-	# Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
-	track_direction = math.atan2(second_waypoint[1] - fist_waypoint[1], second_waypoint[0] - fist_waypoint[0])
-	# Convert to degree
-	track_direction = math.degrees(track_direction)
-	return track_direction
-
-def get_future_track_direction(waypoints, closest_waypoints, FUTURE_STEP):       
-		point_prev = waypoints[closest_waypoints[0]]
-		point_next = waypoints[closest_waypoints[1]]
-		point_future = waypoints[min(len(waypoints) - 1,
-									 closest_waypoints[1] + FUTURE_STEP)]
-
-		track_direction_future = math.degrees(math.atan2(point_future[1] - point_next[1], 
-											   point_future[0] - point_next[0]))
-
-		return track_direction_future
-
-def is_road_turning(waypoints, closest_waypoints,FUTURE_STEP):
-
-	current_track_direction = get_track_direction(waypoints,closest_waypoints)
-	future_trck_direction = get_future_track_direction(waypoints,closest_waypoints,FUTURE_STEP)
-
-	diff_track_direction = get_direction_diff(future_trck_direction,current_track_direction)
-
-	return diff_track_direction>TURN_THRESHOLD_ANGLE
-
-def get_road_turning_direction(waypoints, closest_waypoints,FUTURE_STEP):
-
-	current_track_direction = get_track_direction(waypoints,closest_waypoints)
-	future_trck_direction = get_future_track_direction(waypoints,closest_waypoints,FUTURE_STEP)
-	direction = "straight"
-
-	if is_road_turning (waypoints,closest_waypoints,FUTURE_STEP):
-		if future_trck_direction > 0 and current_track_direction > 0:
-			if future_trck_direction > current_track_direction:
-				direction = "left"
-			else:
-				direction = "right"
-		elif future_trck_direction > 0 and current_track_direction < 0 and current_track_direction < -90 :
-			direction = "right"
-		elif future_trck_direction > 0 and current_track_direction < 0 and current_track_direction > -90 :
-			direction = "left"
-		elif future_trck_direction < 0 and current_track_direction > 0 and future_trck_direction > -90 :
-			direction = "right"
-		elif future_trck_direction < 0 and current_track_direction > 0 and future_trck_direction < -90 :
-			direction = "left"
-		elif future_trck_direction < 0 and current_track_direction < 0:
-			if future_trck_direction > current_track_direction:
-				direction = "left"
-			else:
-				direction =  "right" 
-
-	return direction
-
-def is_straight_road_ahead(direction, future_direction):
-	direction_diff = get_direction_diff(future_direction,direction)
-	#print("current dir: " + str(direction) + "future dir:" + str(future_direction))
-	return direction_diff < TURN_THRESHOLD_ANGLE
-	
-
-
-
-def get_shortest_straight_line_length_and_direction(waypoints,closest_waypoints):
-	
-	waypoints_n_units_back, waypoints_n_units_forward = get_waypoint_n_units_further(waypoints,closest_waypoints,WAYPOINTS_BEFORE,WAYPOINTS_AFTER)
-	length = abs(math.sqrt((waypoints_n_units_forward[0]-waypoints_n_units_back[0])**2 + (waypoints_n_units_forward[1]-waypoints_n_units_back[1])**2))
-	direction = get_direction_between_two_waypoints(waypoints_n_units_back,waypoints_n_units_forward)
-	return length, direction
-
-def get_waypoint_n_units_further(waypoints,closest_waypoints,WAYPOINTS_BEFORE,WAYPOINTS_AFTER):
-	prev_waypoint = closest_waypoints[0]
-	next_waypoint = closest_waypoints[1]
-	#print("first waypoint is ", first_waypoint)
-	waypoints_n_units_back_index = get_waypoint_index_n_units_back(prev_waypoint,WAYPOINTS_BEFORE,waypoints)
-	waypoint_n_units_forward_index = get_waypoint_index_n_units_ahead(prev_waypoint,WAYPOINTS_AFTER,waypoints)
-	waypoints_n_units_back = waypoints[waypoints_n_units_back_index]
-	waypoints_n_units_forward = waypoints[waypoint_n_units_forward_index]
-	print("back waypoint:" + str(waypoints_n_units_back_index) + " forward wapoint:" + str(waypoint_n_units_forward_index))
-	return waypoints_n_units_back, waypoints_n_units_forward
-
-def get_waypoint_index_n_units_ahead(current_waypoint_index,n_units,waypoints):
-	#print("first waypoint is ", first_waypoint)
-	waypoint_n_units_forward_index = current_waypoint_index + n_units
-	if waypoint_n_units_forward_index > len(waypoints)-1:
-		waypoint_n_units_forward_index = waypoint_n_units_forward_index - len(waypoints)
-	return waypoint_n_units_forward_index
-
-def get_waypoint_index_n_units_back(current_waypoint_index,n_units,waypoints):
-	#print("first waypoint is ", first_waypoint)
-	waypoints_n_units_back_index = current_waypoint_index - n_units
-	if waypoints_n_units_back_index < 0:
-		waypoints_n_units_back_index = len(waypoints) + waypoints_n_units_back_index
-	return waypoints_n_units_back_index
-
-def get_distance_from_shortest_straight_line(waypoints,closest_waypoints, car_position):
-	waypoint_n_units_back, waypoint_n_units_forward = get_waypoint_n_units_further(waypoints,closest_waypoints,WAYPOINTS_BEFORE,WAYPOINTS_AFTER)
-	x1 = waypoint_n_units_back[0]
-	y1 = waypoint_n_units_back[1]
-	#print("first waypoint is ", first_waypoint)
-	#print("last waypoint is ", last_waypoint)
-	x2 = waypoint_n_units_forward[0]
-	y2 = waypoint_n_units_forward[1]
-	# co-ordinates from car
-	x = car_position[0]
-	y = car_position[1]
-	distance = abs((x2-x1)*(y1-y) - (x1-x)*(y2-y1)) / abs(math.sqrt((x2-x1)**2 + (y2-y1)**2))
-	return distance
+waypoints = [(5.047713151170359, 0.7338535442132044),
+                    (5.04770565032959, 0.8638535439968109),
+                    (5.0476956834520985, 0.9938535436147392),
+                    (5.047682523727417, 1.1654984951019287),
+                    (5.047635078430176, 1.4671425223350525),
+                    (5.047637939453125, 1.7687879800796509),
+                    (5.047791957855225, 2.0704389810562134),
+                    (5.047592401504517, 2.3720779418945312),
+                    (5.046535491943359, 2.6736875772476196),
+                    (5.047996997833252, 2.9753825664520264),
+                    (5.054185152053833, 3.2772375345230103),
+                    (5.043642044067383, 3.578518033027649),
+                    (4.985517501831055, 3.873627543449402),
+                    (4.864901304244995, 4.149420976638794),
+                    (4.694380521774292, 4.397387504577637),
+                    (4.485466480255127, 4.614418983459473),
+                    (4.248257637023926, 4.800158500671387),
+                    (3.9890859127044678, 4.953978538513184),
+                    (3.7155709266662598, 5.080641984939575),
+                    (3.430908441543579, 5.1799540519714355),
+                    (3.137750506401062, 5.250427484512329),
+                    (2.8397865295410156, 5.296255588531494),
+                    (2.539120078086853, 5.3181071281433105),
+                    (2.2375710010528564, 5.3235108852386475),
+                    (1.9359005093574524, 5.322162628173828),
+                    (1.6342605352401733, 5.322505950927734),
+                    (1.332614541053772, 5.322503566741943),
+                    (1.030969500541687, 5.322561025619507),
+                    (0.729324609041214, 5.3226025104522705),
+                    (0.427679643034935, 5.322644948959351),
+                    (0.12603449821472168, 5.322690010070801),
+                    (-0.17561005055904388, 5.322726488113403),
+                    (-0.4772569537162781, 5.322813034057617),
+                    (-0.7788949012756348, 5.3227338790893555),
+                    (-1.0805605053901672, 5.3232011795043945),
+                    (-1.3821905255317688, 5.322984933853149),
+                    (-1.6810904741287231, 5.284508943557739),
+                    (-1.9751620292663574, 5.2178521156311035),
+                    (-2.260125994682312, 5.119076490402222),
+                    (-2.5373090505599976, 5.00073504447937),
+                    (-2.8059630393981934, 4.863694906234741),
+                    (-3.062180995941162, 4.704719543457031),
+                    (-3.3042320013046265, 4.5248870849609375),
+                    (-3.529217481613159, 4.3243091106414795),
+                    (-3.7318731546401978, 4.101363658905029),
+                    (-3.90584647655487, 3.8554480075836186),
+                    (-4.039863586425781, 3.585712075233459),
+                    (-4.1200443506240845, 3.2955139875411987),
+                    (-4.144556403160095, 2.995144486427307),
+                    (-4.126953125, 2.6942654848098755),
+                    (-4.071332931518555, 2.398432970046997),
+                    (-3.958806037902832, 2.1193479895591736),
+                    (-3.783313035964966, 1.8751635551452637),
+                    (-3.5551005601882935, 1.6790630221366882),
+                    (-3.2907774448394775, 1.5345749258995056),
+                    (-3.0078725814819336, 1.430380940437317),
+                    (-2.7149124145507804, 1.3586868941783903),
+                    (-2.4165639877319336, 1.3140783309936523),
+                    (-2.1169010400772095, 1.2831584215164185),
+                    (-1.815625011920929, 1.268408864736557),
+                    (-1.5143309831619263, 1.2538496851921082),
+                    (-1.2130455374717712, 1.2390367984771729),
+                    (-0.9114704728126526, 1.2363835275173187),
+                    (-0.6098254919052124, 1.2365630269050598),
+                    (-0.308188796043396, 1.2365911602973938),
+                    (-0.007330369204282761, 1.2191131711006165),
+                    (0.2860223539173603, 1.1508545875549316),
+                    (0.563851535320282, 1.0351442098617554),
+                    (0.8147554844617844, 0.8685226440429688),
+                    (1.0282776355743408, 0.6561800837516785),
+                    (1.2003579139709473, 0.4092078059911728),
+                    (1.3295488953590393, 0.13720808364450932),
+                    (1.4157362580299377, -0.15150323323905468),
+                    (1.450616329908371, -0.45052170753479004),
+                    (1.3927295207977288, -0.7463871538639085),
+                    (1.2908461689949036, -1.0299692749977112),
+                    (1.143800526857376, -1.2926869690418243),
+                    (0.9518398344516754, -1.5243859887123108),
+                    (0.7186586856842025, -1.7145115137100229),
+                    (0.45227885246276683, -1.855014026165009),
+                    (0.16265911608934402, -1.9376079440116882),
+                    (-0.1363276019692421, -1.974715530872345),
+                    (-0.43811360001564026, -1.9738110303878784),
+                    (-0.7397201657295245, -1.9762679934501648),
+                    (-1.0413659811019875, -1.9779844880104065),
+                    (-1.3430045247077942, -1.9798510074615479),
+                    (-1.644643962383268, -1.9816885590553284),
+                    (-1.9462829828262347, -1.9835320115089417),
+                    (-2.2479225397109985, -1.985372543334961),
+                    (-2.549562096595764, -1.9872255325317383),
+                    (-2.851203441619873, -1.98899644613266),
+                    (-3.1528279781341553, -1.9913004636764526),
+                    (-3.4545594453811646, -1.990263044834137),
+                    (-3.7552355527877808, -2.0102375149726868),
+                    (-4.043314099311829, -2.0968234539031982),
+                    (-4.30501401424408, -2.2452834844589233),
+                    (-4.5301430225372314, -2.4454654455184937),
+                    (-4.715251445770264, -2.6832419633865356),
+                    (-4.861320495605469, -2.9466885328292847),
+                    (-4.9679179191589355, -3.228197932243347),
+                    (-5.033743619918823, -3.522189497947693),
+                    (-5.035353899002075, -3.8221709728240967),
+                    (-4.979797840118408, -4.1186283826828),
+                    (-4.885537624359131, -4.404821395874023),
+                    (-4.747098445892334, -4.67200779914856),
+                    (-4.558772563934326, -4.9065775871276855),
+                    (-4.323529958724976, -5.094030380249023),
+                    (-4.052764415740967, -5.225226402282715),
+                    (-3.761020541191101, -5.2993834018707275),
+                    (-3.460679054260254, -5.324389457702637),
+                    (-3.1590585708618164, -5.324723482131958),
+                    (-2.8573139905929565, -5.3203818798065186),
+                    (-2.5556769371032715, -5.320091009140015),
+                    (-2.2540465593338013, -5.320049047470093),
+                    (-1.952399492263794, -5.319373607635498),
+                    (-1.6507534980773952, -5.318728923797607),
+                    (-1.3491094708442688, -5.318179130554199),
+                    (-1.0474649667739868, -5.317615032196045),
+                    (-0.7458204627037088, -5.317038059234619),
+                    (-0.44417594373226166, -5.316463947296143),
+                    (-0.1425314992666209, -5.315891981124878),
+                    (0.15911295264959335, -5.3153181076049805),
+                    (0.46075744926929474, -5.314745903015137),
+                    (0.7624020576477013, -5.314177513122559),
+                    (1.0640459656715429, -5.313592910766602),
+                    (1.365689992904663, -5.312999963760376),
+                    (1.6673370003700232, -5.312516927719116),
+                    (1.96898353099823, -5.312005996704102),
+                    (2.270608067512512, -5.310791015625),
+                    (2.57225501537323, -5.310286045074463),
+                    (2.874038577079773, -5.314147472381592),
+                    (3.17556989192963, -5.309978008270264),
+                    (3.475502014160152, -5.281306505203247),
+                    (3.7679214477539062, -5.209463596343994),
+                    (4.044942855834964, -5.090991020202635),
+                    (4.2989044189453125, -4.929158926010132),
+                    (4.525230407714842, -4.730527400970461),
+                    (4.716594934463501, -4.497802019119263),
+                    (4.866780042648314, -4.236763954162601),
+                    (4.974277973175049, -3.9555180072784424),
+                    (5.034102439880371, -3.6602519750595093),
+                    (5.051187992095947, -3.359257936477661),
+                    (5.050349473953247, -3.0575923919677734),
+                    (5.047270059585571, -2.75586998462677),
+                    (5.0475685596466064, -2.4542330503463745),
+                    (5.048034429550171, -2.1525999307632446),
+                    (5.047942638397217, -1.8509529829025269),
+                    (5.0478515625, -1.5493065118789673),
+                    (5.047849178314209, -1.2476614713668823),
+                    (5.047840118408203, -0.9460167586803436),
+                    (5.047814846038818, -0.6443717181682587),
+                    (5.047791004180908, -0.3427266478538513),
+                    (5.047769069671631, -0.041081611067056656),
+                    (5.047745943069458, 0.26056334376335144),
+                    (5.047723054885864, 0.5622083842754364),
+                    (5.047713151170359, 0.7338535442132044),]
 
 def get_test_params(heading,speed,x,y):
 	return {
@@ -345,66 +163,30 @@ def get_test_params(heading,speed,x,y):
 	"x": x,
 	"y": y,
 	"distance_from_center": .0001,
-	"is_left_of_center": True,
+	"is_left_of_center": bool(random.randint(0,1)),
 	"is_reversed": False,
 	"is_offtrack": False,
 	"heading": heading,
-	"progress": 1.0,
+	"progress": math.floor( 100*waypoints.index((x,y))/len(waypoints) ),
 	"is_crashed": False,
-	"steps": 1,
+	"steps": math.ceil( waypoints.index((x,y))*random.uniform(0.6, 0.9) ),
 	"speed": speed,
-	"steering_angle": 1.0,
+	"steering_angle": random.uniform(-25.0, 25.0),
 	"track_length": 24.05,
-	"track_width": 0.607175005164503,
-	"waypoints": [(2.909995283569139, 0.6831924746239328), (3.3199952311658905, 0.6833390533713652),
-				  (3.41999521838461, 0.6833748042853732), (3.6300023417267235, 0.6834498837610459),
-				  (4.189995119968753, 0.6836500863232341), (4.500002230529587, 0.6837609167129147),
-				  (4.549995073956144, 0.6837787896136626), (5.320002125723089, 0.6840540742077795),
-				  (5.420002112941809, 0.6840898251217875), (5.7800020669292005, 0.684218528412216),
-				  (6.289747858140073, 0.6921400142174), (6.460906484698166, 0.7123063542781353),
-				  (6.5136980596947165, 0.7210294115664316), (6.704287871536597, 0.799598672280553),
-				  (6.836281775656231, 0.8817004790362547), (6.991663362669656, 1.0062653214908401),
-				  (7.1142074641408275, 1.1693225137564909), (7.165830682349035, 1.263426756737598),
-				  (7.280019741788613, 1.7628308313393968), (7.272892208655982, 1.8132370038722583),
-				  (7.265960701310593, 1.8622568749360433), (7.1045747673751585, 2.3014874894475916),
-				  (7.011749008840918, 2.419260292916218), (6.727273712845888, 2.6474924751765463),
-				  (6.536921216759571, 2.7266447610626687), (6.079802178702642, 2.773360773339069),
-				  (5.919813651266964, 2.772005974951175), (5.719827991972368, 2.7703124769663074),
-				  (5.670000926947205, 2.7698905365406308), (5.200034627604903, 2.765910816276192),
-				  (5.049876033335467, 2.7646392587170006), (5.002030872389276, 2.768980714618128),
-				  (4.942709994269048, 2.775327848322301), (4.561340171137485, 2.898322513024676),
-				  (4.258533108743229, 3.166955220685885), (4.092728535429521, 3.3703748558215287),
-				  (4.001121969780925, 3.482763638518189), (3.774000078716213, 3.761411273431655),
-				  (3.6823935130676184, 3.8738000561283137), (3.5490587458571623, 4.037383660336441),
-				  (3.2758532950668884, 4.333295323360169), (3.1911463583891155, 4.385684825652305),
-				  (3.0954945192403103, 4.435922305057415), (2.9549738926202442, 4.484413606024224),
-				  (2.8089822299540046, 4.500038654567632), (2.8110045575773057, 4.499832029419236),
-				  (2.5003276964136627, 4.498718163592657), (2.249377566090162, 4.491428972830993),
-				  (1.990177178741659, 4.483900142037221), (1.7395172672798365, 4.476619381080485),
-				  (1.1871156114665855, 4.391792930201858), (1.1054389398706574, 4.3402307341807065),
-				  (0.7316196323127645, 3.819658838269335), (0.7080468873794841, 3.5295953182618844),
-				  (0.8747319412102282, 2.7251244177375193), (0.8863119620897287, 2.6692358445815714),
-				  (0.9180990438541362, 2.5158220758940644), (0.9380374746317692, 2.4195933679559642),
-				  (1.0212099341560652, 2.0181787127447155), (1.043063552869095, 1.912706746772055),
-				  (1.0936256517149223, 1.6686792454688633), (1.219724413480236, 1.169889412099395),
-				  (1.2404620134668318, 1.1182110370035536), (1.286611404297767, 1.0270193376917442),
-				  (1.3195344250237366, 0.9895904728963364), (1.3897426105955222, 0.9097735962139227),
-				  (1.4563853812178036, 0.8435308547287804), (1.4996428710531535, 0.8193608401945228),
-				  (2.0400025449490777, 0.6828814442283201), (2.7500024542019887, 0.6831352757177762),
-				  (2.909995283569139, 0.6831924746239328)],
-	"closest_waypoints": [3,4]
+	"track_width": 1.067,
+	"waypoints": waypoints,
+	"closest_waypoints": [waypoints.index((x,y))-1,waypoints.index((x,y))+1]
 }
 
 from reward_function import reward_function as rf
+import random
 
 def test_rewards():
-	heading = [0.45,5.24, .002, 10.24, 15.4678]
-	speed = [1.24, 2.48, 2.0, 1.3, 3,4]
-	x = [2.1345, 2.4567, 3,4325, 3.5678, 2.7890]
-	y = [0.6873,0.6739,0.7980,0.9840,0.8465]
+	heading = random.randint(-180, 180)
+	speed = random.uniform(1.5, 3.8)
 
-	for i in range(0,5):
-		reward = rf(get_test_params(heading[i],speed[i],x[i],y[i]))
+	for point in waypoints[1:-1]:
+		reward = rf(get_test_params(heading,speed,point[0], point[1]))
 		print("reward", reward)
 
 test_rewards()
