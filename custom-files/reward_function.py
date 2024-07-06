@@ -164,12 +164,12 @@ def is_higher_speed_favorable(params):
     global angleChange
     max_speed = 3.8
     min_speed = 1.25
+    sigma     = (max_speed-min_speed)/6
     turn_angle = is_a_turn_coming_up(params)
     optimal_speed = max_speed - ( turn_angle / max(angleChange)) * (max_speed - min_speed)
     # Calculate reward for speed
     speed_diff = abs(params['speed'] - optimal_speed)
-    reward_speed = math.exp(-0.5 * speed_diff)
-
+    reward_speed = math.exp(-0.5*((speed_diff**2)/sigma))
     return reward_speed*10
 
 def is_steps_favorable(params):
@@ -185,7 +185,7 @@ def is_steps_favorable(params):
     reward = 1.0
 
     # Give additional reward if the car pass every 100 steps faster than expected
-    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
+    if steps > 0 and (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
         reward = 10.0
 
     return float(reward)
