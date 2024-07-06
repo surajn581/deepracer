@@ -31,6 +31,8 @@ import numpy as np
 from scipy import signal
 
 smoothPath = []
+turnPoints = []
+angleChange = []
 
 def calc_distance(prev_point, next_point):
     delta_x = next_point[0] - prev_point[0]
@@ -38,6 +40,7 @@ def calc_distance(prev_point, next_point):
     return math.hypot(delta_x, delta_y)
 
 def smoothen(center_line, max_offset = 0.45305, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    print('calculating smooth path')
     if max_offset < 0.0001:
         return center_line
     if skip_step < 1:
@@ -67,7 +70,7 @@ def _get_waypoints(params):
     global smoothPath
     if smoothPath:
         return smoothPath
-    smoothPath = smoothen( up_sample( params['waypoints'] ) )
+    smoothPath = smoothen( params['waypoints'] )
     return smoothPath
 
 def waypoint_at(params, index):
@@ -94,15 +97,6 @@ def normalize_angle_to_360(angle):
         return 360 + angle
     return angle
 
-def up_sample(waypoints, factor = 10):
-    """
-    Adds extra waypoints in between provided waypoints
-    :param waypoints:
-    :param factor: integer. E.g. 3 means that the resulting list has 3 times as many points.
-    :return:
-    """
-    return [ list(point) for point in list( signal.resample(np.array(waypoints), len(waypoints) * factor) ) ]
-
 def get_waypoints(params):
     """ Way-points """
     waypoints = _get_waypoints(params)
@@ -117,9 +111,15 @@ def calculate_angle(p1, p2, p3):
     return angle % 360
 
 def get_turn_points(coordinates):
+    global turnPoints
+    global angleChange
+    if turnPoints and angleChange:
+        return turnPoints, angleChange
+    
     turn_points = []
+    angle_change = []
     window_size = 8
-    threshold_angle = 4.0  # Set a threshold angle to determine a significant turn
+    threshold_angle = 4.5  # Set a threshold angle to determine a significant turn
 
     for i in range(len(coordinates) - window_size + 1):
         window = coordinates[i : i + window_size]
@@ -129,13 +129,18 @@ def get_turn_points(coordinates):
         max_angle_change = abs( max(angles) - min(angles) )
         if max_angle_change >= threshold_angle:
             turn_points.append(coordinates[i])
-    return turn_points
+            angle_change.append(abs(max_angle_change))
+    turnPoints = turn_points
+    angleChange = angle_change
+    return turnPoints, angleChange
 
 def is_a_turn_coming_up( params ):
-    next_way_point = waypoint_at(params, params["closest_waypoints"][1]) #getting smooth point at the index of the closest waypoint
-    if next_way_point in get_turn_points( _get_waypoints(params) ):
-        return True
-    return False
+    waypoints = _get_waypoints(params)
+    next_way_point = waypoints[params["closest_waypoints"][1]] #getting smooth point at the index of the closest waypoint
+    tp, ac = get_turn_points( waypoints )
+    if next_way_point in tp:
+        return ac[ tp.index(next_way_point) ]
+    return 0
 
 def distanceFromLine(p1, p2, p3):
     '''
@@ -153,21 +158,21 @@ def distanceFromLine(p1, p2, p3):
     return distance
 
 def is_higher_speed_favorable(params):
-    """ no high difference in heading  """
-    reward = 10.0
+    """ no high difference in heading
+        output range: 1 - 10
+    """
+    global angleChange
+    max_speed = 3.8
+    min_speed = 1.25
+    turn_angle = is_a_turn_coming_up(params)
+    optimal_speed = max_speed - ( turn_angle / max(angleChange)) * (max_speed - min_speed)
+    # Calculate reward for speed
+    speed_diff = abs(params['speed'] - optimal_speed)
+    reward_speed = math.exp(-0.5 * speed_diff)
 
-    # base reward * speed if straight path
-    # base reward / speed if turn is comming up
-    reward = reward * ( params["speed"] ** (-1 if is_a_turn_coming_up( params ) else 1) )
-
-    if not is_heading_correct(params):
-        reward*=0.01
-    
-    return reward
+    return reward_speed*10
 
 def is_steps_favorable(params):
-    # if max steps = 500 then range: 0 - 100
-    #############################################################################
     '''
     Example of using steps and progress
     '''
@@ -176,10 +181,12 @@ def is_steps_favorable(params):
     steps = params['steps']
     progress = params['progress']
 
-    reward = 10*progress/float(steps)
+    TOTAL_NUM_STEPS = 300
+    reward = 1.0
 
-    if progress > 90 and steps<300:
-        reward+=10
+    # Give additional reward if the car pass every 100 steps faster than expected
+    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
+        reward = 10.0
 
     return float(reward)
 
@@ -213,57 +220,40 @@ def get_heading_reward(params):
     ###############################################################################
     '''
     Example of using waypoints and heading to make the car point in the right direction
-    output range: 0.1 to 10
+    output range: 0.01 to 10
     '''
     # Initialize the reward with typical value
     reward = 10
     if not is_heading_correct(params):
-        reward *= 0.01
+        reward *= 0.001
     return float(reward)
-
-def is_progress_favorable(params):
-    '''
-    output range: 0 to 1
-    '''
-    # progress range is 1-100 > reward range is 0-1
-    return params["progress"] / 100
 
 def following_smooth_path_reward(params):
     '''
-    output range: 0 to 1.066
+    output range: 0 to 10
     '''
-    prev = waypoint_at( params, params['closest_waypoints'][0] )
-    next = waypoint_at( params, params['closest_waypoints'][1] )
+    waypoints = _get_waypoints(params)
+    closest_waypoints = params['closest_waypoints']
+    next = waypoints[closest_waypoints[1]]
+    prev = waypoints[closest_waypoints[0]]
     self = (params['x'], params['y'])
     distance = distanceFromLine( prev, next, self )
     return 10/( (1+float(distance))**4 )
 
-def score_steer_to_point_ahead(params):
-    heading_reward          = normalize_reward( get_heading_reward(params) )
-    steps_reward            = normalize_reward( is_steps_favorable(params) )
-    progress_reward         = normalize_reward( is_progress_favorable(params) )
-    speed_reward            = normalize_reward( is_higher_speed_favorable(params) )
-    on_smooth_track_reward  = normalize_reward( following_smooth_path_reward(params) )
-    reward                  = speed_reward + heading_reward + steps_reward + progress_reward + (3*on_smooth_track_reward)
-    return reward
-
-def normalize_reward(reward):
-    sign = 1 if reward >=0 else -1
-    if reward == 0:
-        return 0
-    if reward <=0:
-        reward = 1/(1 + np.exp(-np.abs(reward)/1000) )
-    if reward >=0:
-        reward = (math.log2(reward)*2)/(1 + np.exp(-np.abs(reward)/100) )
-    reward = reward**2
-    reward = sign*(1 - reward) if sign < 0 else reward
+def calc_sub_reward_and_aggregate(params):
+    heading_reward          = get_heading_reward(params) # 0.01 to 10
+    steps_reward            = is_steps_favorable(params) # 1 or 10
+    speed_reward            = is_higher_speed_favorable(params) # 1 to 10
+    on_smooth_track_reward  = following_smooth_path_reward(params) # 0 to 10
+    reward                  = ( speed_reward + heading_reward + steps_reward + on_smooth_track_reward )**2 + ( speed_reward * heading_reward * steps_reward * on_smooth_track_reward )
+    reward                  = reward/100 # to ensure that the output is not crazily high
     return reward
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
-        return -500.0
-    return float(score_steer_to_point_ahead(params))
+        return 0.001
+    return float(calc_sub_reward_and_aggregate(params))
 
 def reward_function(params):
     reward = float(calculate_reward(params))
-    return normalize_reward( reward )
+    return reward
