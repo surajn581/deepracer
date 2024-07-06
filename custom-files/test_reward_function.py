@@ -157,7 +157,7 @@ waypoints = [(5.047713151170359, 0.7338535442132044),
                     (5.047723054885864, 0.5622083842754364),
                     (5.047713151170359, 0.7338535442132044),]
 
-def get_test_params(heading,speed,x,y):
+def get_test_params(x, y, heading = None, speed=None,steps=None,progress=None):
 	return {
 	"all_wheels_on_track": True,
 	"x": x,
@@ -166,11 +166,11 @@ def get_test_params(heading,speed,x,y):
 	"is_left_of_center": bool(random.randint(0,1)),
 	"is_reversed": False,
 	"is_offtrack": False,
-	"heading": heading,
-	"progress": math.floor( 100*waypoints.index((x,y))/len(waypoints) ),
+	"heading": heading or random.randint(-180, 180)  ,
+	"progress": progress or math.floor( 100*waypoints.index((x,y))/len(waypoints) ),
 	"is_crashed": False,
-	"steps": math.ceil( waypoints.index((x,y))*random.uniform(0.6, 0.9) ),
-	"speed": speed,
+	"steps": steps or math.ceil( waypoints.index((x,y))*random.uniform(0.6, 0.9) ),
+	"speed": speed or random.uniform(1.5, 3.8),
 	"steering_angle": random.uniform(-25.0, 25.0),
 	"track_length": 24.05,
 	"track_width": 1.067,
@@ -178,15 +178,46 @@ def get_test_params(heading,speed,x,y):
 	"closest_waypoints": [waypoints.index((x,y))-1,waypoints.index((x,y))+1]
 }
 
-from reward_function import reward_function as rf
+from reward_function import *
 import random
+
+def test_heading_reward():
+	heading = random.randint(-180, 180)
+	for point in waypoints[1:-1]:
+		reward = normalize_reward(get_heading_reward(get_test_params(point[0], point[1], heading=heading)))
+		print("heading reward", reward)
+		
+test_heading_reward()
+
+def test_steps_reward():
+	for point in waypoints[1:-1]:
+		steps = math.ceil( waypoints.index((point[0], point[1]))*random.uniform(0.6, 0.9) )
+		reward = normalize_reward(is_steps_favorable(get_test_params(point[0], point[1], steps=steps)))
+		print("steps reward", reward)
+
+test_steps_reward()
+
+def test_progress_reward():
+	for point in waypoints[1:-1]:
+		progress = math.floor( 100*waypoints.index((point[0], point[1]))/len(waypoints) )
+		reward = normalize_reward(is_progress_favorable(get_test_params(point[0], point[1], progress=progress)))
+		print("progress reward", reward)
+
+test_progress_reward()
+
+def test_speed_reward():
+	speed = random.uniform(1.5, 3.8)
+	for point in waypoints[1:-1]:
+		reward = normalize_reward(is_steps_favorable(get_test_params(point[0], point[1], speed=speed)))
+		print("speed reward", reward)
+test_speed_reward()
 
 def test_rewards():
 	heading = random.randint(-180, 180)
 	speed = random.uniform(1.5, 3.8)
 
 	for point in waypoints[1:-1]:
-		reward = rf(get_test_params(heading,speed,point[0], point[1]))
+		reward = reward_function(get_test_params(point[0], point[1], heading=heading, speed=speed))
 		print("reward", reward)
 
 test_rewards()
