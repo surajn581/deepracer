@@ -244,8 +244,8 @@ def score_steer_to_point_ahead(params):
     progress_reward         = normalize_reward( is_progress_favorable(params) )
     speed_reward            = normalize_reward( is_higher_speed_favorable(params) )
     on_smooth_track_reward  = normalize_reward( following_smooth_path_reward(params) )
-    print(heading_reward, steps_reward, progress_reward, speed_reward, on_smooth_track_reward)
-    print("smooth reward", on_smooth_track_reward)
+    #print(heading_reward, steps_reward, progress_reward, speed_reward, on_smooth_track_reward)
+    #print("smooth reward", on_smooth_track_reward)
     reward                  = speed_reward + heading_reward + steps_reward + progress_reward + (3*on_smooth_track_reward)
     return reward
 
