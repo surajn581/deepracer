@@ -39,7 +39,7 @@ def calc_distance(prev_point, next_point):
     delta_y = next_point[1] - prev_point[1]
     return math.hypot(delta_x, delta_y)
 
-def smoothen(center_line, max_offset = 0.45305, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+def smoothen(center_line, max_offset = 0.31980, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
     print('calculating smooth path')
     if max_offset < 0.0001:
         return center_line
@@ -172,6 +172,14 @@ def is_higher_speed_favorable(params):
     reward_speed = math.exp(-0.5*((speed_diff**2)/sigma))
     return reward_speed*10
 
+def is_steering_angle_correct(params):
+
+    reward = 20
+    steer = params['steering_angle']
+    if not is_a_turn_coming_up(params):
+        reward = reward/( 1+abs(steer) )
+    return reward
+
 def is_steps_favorable(params):
     '''
     Example of using steps and progress
@@ -195,6 +203,8 @@ def is_heading_correct(params):
     waypoints = _get_waypoints(params)
     closest_waypoints = params['closest_waypoints']
     heading = params['heading']
+
+    # heading = params['steering_angle'] + heading
 
     # Calculate the direction of the center line based on the closest waypoints
     next_point = waypoints[closest_waypoints[1]]
