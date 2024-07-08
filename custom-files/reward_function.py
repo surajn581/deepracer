@@ -473,8 +473,11 @@ def calc_sub_reward_and_aggregate(params):
     print("steering_reward", steering_reward)
     print("on_smooth_track_reward: ", on_smooth_track_reward)
 
-    reward = (speed_reward * heading_reward * steering_reward) + (speed_reward + heading_reward + steering_reward)
-    return reward*on_smooth_track_reward
+    if on_smooth_track_reward <= 0.25:
+        return on_smooth_track_reward
+
+    reward = (speed_reward + heading_reward + steering_reward)**2 + (speed_reward + heading_reward + steering_reward + on_smooth_track_reward*10)
+    return reward
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
