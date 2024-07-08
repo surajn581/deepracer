@@ -404,6 +404,10 @@ def calc_sub_reward_and_aggregate(params):
     on_smooth_track_reward  = following_smooth_path_reward(params) # 0 to 10
     # reward                  = ( speed_reward + heading_reward + on_smooth_track_reward )**2 + ( speed_reward * heading_reward * on_smooth_track_reward )
     # reward                  = reward/100 # to ensure that the output is not crazily high
+    print("heading_reward: ", heading_reward)
+    print("speed_reward: ", speed_reward)
+    print("on_smooth_track_reward: ", on_smooth_track_reward)
+
     reward = speed_reward + heading_reward + on_smooth_track_reward
     return reward*10
 
@@ -414,4 +418,5 @@ def calculate_reward(params):
 
 def reward_function(params):
     reward = float(calculate_reward(params))
+    print("Total reward: ", reward)
     return reward
