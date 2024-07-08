@@ -35,6 +35,157 @@ turnPoints = []
 angleChange = []
 optimalVelocity = []
 
+class SteeringUtils:
+
+    MAX_TURN = 20
+
+    @staticmethod
+    def calc_angle(p1, p2):
+        angle =  math.degrees(
+            math.atan2(p2[1] - p1[1], p2[0] - p1[0])
+        )
+        if angle < 0:
+            angle = angle + 360
+
+        return angle
+
+    @staticmethod
+    def test_calc_angle():
+        assert SteeringUtils.calc_angle((0,0), (1, 1)) == 45
+        assert SteeringUtils.calc_angle((0,0), (-1, 1)) == 135
+        assert SteeringUtils.calc_angle((0,0), (1, -1)) == 360-45
+        assert SteeringUtils.calc_angle((0,0), (-1, -1)) == 360-135
+
+    @staticmethod
+    def normalize(angle):
+        if angle < 0:
+            return angle + 360
+        return angle
+    
+    @staticmethod
+    def real_normalize(angle):
+        if angle < 0:
+            angle = angle + 360
+
+        if angle > 180:
+            angle = angle - 360
+        return angle
+
+    @staticmethod
+    def is_right_turn(
+        curr_point, 
+        next_point, 
+        next_to_next_point 
+    ):
+        target_angle = SteeringUtils.calc_angle(curr_point, next_point)
+        next_target_angle = SteeringUtils.calc_angle(curr_point, next_to_next_point)
+
+        return next_target_angle < target_angle
+
+    @staticmethod
+    def is_a_turn(
+        curr_point, 
+        next_point, 
+        next_to_next_point 
+    ):
+        target_angle = SteeringUtils.calc_angle(curr_point, next_point)
+        next_target_angle = SteeringUtils.calc_angle(curr_point, next_to_next_point)
+
+        return abs(next_target_angle - target_angle) > 2
+
+    @staticmethod
+    def test_is_right_turn():
+        assert SteeringUtils.is_right_turn((0, 0), (1, 1), (1, 2)) == False
+        assert SteeringUtils.is_right_turn((0, 0), (1, 1), (1, 0.5)) == True
+
+        assert SteeringUtils.is_right_turn((0,0), (1, -1), (1, -0.5)) == False
+        assert SteeringUtils.is_right_turn((0,0), (1, -1), (0.5, 1)) == True
+
+
+    # No current points to be used
+    @staticmethod
+    def steering_angle_factor(
+            curr_point, # let this be T+1
+            next_point, # T+2
+            next_to_next_point,# T+3 
+            heading, 
+            steering
+        ):
+        # W.r.t heading
+        target_angle = SteeringUtils.calc_angle(curr_point, next_point)
+        next_target_angle = SteeringUtils.calc_angle(curr_point, next_to_next_point)
+
+        heading = SteeringUtils.normalize(heading)
+
+        # This shoudl incorporate whethr im moving in 
+        # right so it shoud be -ve
+        # left if i need to move +ve
+        diff_bw_heading_and_target = SteeringUtils.real_normalize( target_angle - heading )
+        diff_bw_heading_and_next_target = SteeringUtils.real_normalize( next_target_angle - heading )
+            
+        if SteeringUtils.is_a_turn(curr_point, next_point, next_to_next_point):
+            # If it is truing to go in opposite direction, penalize
+            if SteeringUtils.is_right_turn(curr_point, next_point, next_to_next_point) and steering > 0:
+                return 1e-6
+            
+            if not SteeringUtils.is_right_turn(curr_point, next_point, next_to_next_point) and steering < 0:
+                return 1e-6
+        else:
+            if diff_bw_heading_and_target > 0 and steering < 0:
+                return 1e-6
+            if diff_bw_heading_and_target < 0 and steering > 0:
+                return 1e-6
+        
+        # If heading is close to target, steer should be close to next angle target
+        if abs(diff_bw_heading_and_target) <= 4:
+            return math.exp(-0.5 * min(SteeringUtils.MAX_TURN, abs(
+                steering - 
+                diff_bw_heading_and_next_target
+            ) ) / SteeringUtils.MAX_TURN )
+
+        # if heading is not close to target, heading + steer should move towards current angle
+        return math.exp(-0.5 * min(SteeringUtils.MAX_TURN, abs(
+            steering -
+            diff_bw_heading_and_target
+        )) / SteeringUtils.MAX_TURN )
+
+    @staticmethod
+    def test_steering_opposite_turns():
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, 1), (1, 1.2), 45, -20) == 1e-6
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, 1), (1, 0.8), 45, 10) == 1e-6
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, -1), (1, -0.8), 45, -10) == 1e-6
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, -1), (1, -1.2), 45, 10) == 1e-6
+
+    @staticmethod
+    def test_smooth_roads():
+        # When the line is straight or the current curve is less than 5 degrees, focus on the next curve
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, 1), (2, 2), 45, 2) > SteeringUtils.steering_angle_factor((0, 0), (1, 1), (2, 2), 45, 5)
+        # 3 degrees is the required steer to be smooth (operator)
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, 1), (1, 1.1), 45, 3) > SteeringUtils.steering_angle_factor((0, 0), (1, 1), (1, 1.1), 45, 1)
+
+        # because the curve should be towards -2 and not 2
+        assert SteeringUtils.steering_angle_factor((0, 0), (1, -1), (1, -1.1), -45, -2) > SteeringUtils.steering_angle_factor((0, 0), (1, -1), (1, -1.1), -45, 2)
+
+        assert abs( SteeringUtils.steering_angle_factor((0, 0), (-1, -0.5), (-1, -0.6), -156, 6) - 0.97 ) < 0.1
+
+        # When we curve in the different direction
+        assert SteeringUtils.steering_angle_factor((0, 0), (-1, -0.5), (-1, -0.6), -156, -2) == 1e-6
+        assert SteeringUtils.steering_angle_factor((0, 0), (-1, -0.5), (-1, -0.4), -156, 2) == 1e-6
+
+    @staticmethod
+    def test_turning():
+        assert SteeringUtils.steering_angle_factor((0,0), (1, 1), (1, 2), 10, 20) > SteeringUtils.steering_angle_factor((0,0), (1, 1), (1, 2), 10, 10)
+        # already over steered. Reward lesser steer
+        assert SteeringUtils.steering_angle_factor((0, 0), (-1, -0.5), (-1, -0.6), -146, 0) > SteeringUtils.steering_angle_factor((0, 0), (-1, -0.5), (-1, -0.6), -146, 4)
+
+    @staticmethod
+    def run_tests():
+        SteeringUtils.test_is_right_turn()
+        SteeringUtils.test_calc_angle()
+        SteeringUtils.test_smooth_roads()
+        SteeringUtils.test_steering_opposite_turns()
+        SteeringUtils.test_turning()
+
 def calc_distance(prev_point, next_point):
     delta_x = next_point[0] - prev_point[0]
     delta_y = next_point[1] - prev_point[1]
@@ -241,112 +392,19 @@ def is_higher_speed_favorable(params):
         output range: 1 - 10
     """
     global angleChange
-    max_speed = 3.8
+    max_speed = 4.0
     min_speed = 1.25
     sigma     = (max_speed-min_speed)/6
-    optimal_velocity_ = optimal_velocity( _get_waypoints(params), min_speed, max_speed, 10 )[ params['closest_waypoints'][1] ]
+    optimal_velocity_ = optimal_velocity( _get_waypoints(params), min_speed, max_speed, 5 )[ params['closest_waypoints'][1] ]
     # Calculate reward for speed
     speed_diff = abs(params['speed'] - optimal_velocity_)
     reward_speed = math.exp(-0.5*((speed_diff**2)/sigma))
     return reward_speed*10
 
-def is_steering_angle_correct(params):
-
-    reward = 20
-    steer = params['steering_angle']
-    if not is_a_turn_coming_up(params):
-        reward = reward/( 1+abs(steer) )
-    return reward
-
-import math
-
-MAX_TURN = 20
-
-def calc_angle_bw_heading(p1, p2, heading):
-    angle =  math.degrees(
-        math.atan2(p2[1] - p1[1], p2[0] - p1[0])
-    ) -  heading
-    if angle < 0:
-        angle = angle + 360
-
-    if angle > 180:
-        angle = angle - 360
-    
-    return angle
-
-def calc_angle(p1, p2):
-    angle =  math.degrees(
-        math.atan2(p2[1] - p1[1], p2[0] - p1[0])
-    )
-    if angle < 0:
-        angle = angle + 360
-
-    if angle > 180:
-        angle = angle - 360
-    
-    return angle
-
-def calc_angle_bw_points(p1, p2, p3):
-    angle =  math.degrees(
-        math.atan2(p3[1] - p1[1], p3[0] - p1[0])
-    ) -  math.degrees(
-        math.atan2(p2[1] - p1[1], p2[0] - p1[0])
-    )
-    if angle < 0:
-        angle = angle + 360
-
-    if angle > 180:
-        angle = angle - 360
-    
-    return angle
-
 def get_future_heading(heading, steering_angle):
     return heading + steering_angle
 
-# def steering_angle_factor(params):
-    MAX_TURN = 20
-
-    waypoints = _get_waypoints(params)
-    closest_waypoints = params['closest_waypoints']
-    heading = params['heading']
-    steering = params['steering_angle']
-    curr_point = (params['x'], params['y'])
-    next_point = waypoints[ (closest_waypoints[1]+1)%len(waypoints) ]
-    next_to_next_point = waypoints[ (closest_waypoints[1]+2)%len(waypoints) ]
-
-    # W.r.t heading
-    angle_of_coming_turn = calc_angle_bw_heading(curr_point, next_point, heading)
-    # turn between points
-    angle_bw_points = calc_angle_bw_points(curr_point, next_point, next_to_next_point)
-
-    # if abs(angle_of_coming_turn) > 90:
-    #     return 1e-6
-
-    if abs(angle_of_coming_turn) <= 4 and abs(angle_bw_points) <= 4:
-        # if angle of coming turn is less than 1 degrees meaning 
-        # more or less a straight line, penalize any steering angle
-        # above 0.5 degrees forcing the car to go straight
-        return 10 if steering < 4 else 1e-6
-
-    # if steering in opposite direction to angle, return negatively
-    
-    # If trck turns left and i turn right, i want to penalize
-    if ( angle_bw_points > 0 and steering < 0 ) or ( steering > 0 and angle_bw_points < 0 ):
-        return 1e-6    
-        
-    if abs(angle_bw_points) > MAX_TURN:
-        return 1e-6
-
-    # I feel the steering reward should be accoridng to angle_bw_points
-    # if it is close to angle_bw_points then reward it
-
-    # and heading reward should be close to angle_of_coming_turn
-    steering_reward = 10 * math.exp(-abs(steering - angle_bw_points) / 100)
-    heading_reward = 10 * math.exp(-abs(angle_of_coming_turn) / 100)
-    
-    return heading_reward * steering_reward
-
-def is_heading_correct(params):
+def get_heading_direction_diff(params):
     # Read input variables
     waypoints = _get_waypoints(params)
     closest_waypoints = params['closest_waypoints']
@@ -369,10 +427,7 @@ def is_heading_correct(params):
         direction_diff = 360 - direction_diff
 
     # Penalize the reward if the difference is too large
-    DIRECTION_THRESHOLD = 10.0
-    if direction_diff > DIRECTION_THRESHOLD:
-        return False
-    return True
+    return direction_diff
 
 def get_heading_reward(params):
     ###############################################################################
@@ -381,14 +436,15 @@ def get_heading_reward(params):
     output range: 0.01 to 10
     '''
     # Initialize the reward with typical value
-    reward = 10
-    if not is_heading_correct(params):
-        reward *= 0.0001
+    direction_diff = get_heading_direction_diff(params)
+    if direction_diff > 160:
+        return 1e-6
+    reward = 10*math.exp(-0.5*direction_diff/20)
     return float(reward)
 
 def following_smooth_path_reward(params):
     '''
-    output range: 0 to 10
+    output range: 0 to 1
     '''
     waypoints = _get_waypoints(params)
     closest_waypoints = params['closest_waypoints']
@@ -396,24 +452,33 @@ def following_smooth_path_reward(params):
     prev = waypoints[closest_waypoints[0]]
     self = (params['x'], params['y'])
     distance = distanceFromLine( prev, next, self )
-    return 10/( (1+float(distance))**4 )
+    return 1/( (1+float(distance))**8 )
+
+def get_steering_reward(params):
+    waypoints = _get_waypoints(params)
+    closest_waypoints = params['closest_waypoints']
+    next_to_next = waypoints[(closest_waypoints[1]+1)%len(waypoints)]
+    next = waypoints[closest_waypoints[1]]
+    prev = waypoints[closest_waypoints[0]]
+    reward = 10 * SteeringUtils.steering_angle_factor(prev, next, next_to_next, params['heading'], params['steering_angle'])
+    return reward
 
 def calc_sub_reward_and_aggregate(params):
-    heading_reward          = get_heading_reward(params) # 0.01 to 10
+    heading_reward          = get_heading_reward(params) # 1e-6 to 10
     speed_reward            = is_higher_speed_favorable(params) # 1 to 10
-    on_smooth_track_reward  = following_smooth_path_reward(params) # 0 to 10
-    # reward                  = ( speed_reward + heading_reward + on_smooth_track_reward )**2 + ( speed_reward * heading_reward * on_smooth_track_reward )
-    # reward                  = reward/100 # to ensure that the output is not crazily high
+    on_smooth_track_reward  = following_smooth_path_reward(params) # 0 to 1
+    steering_reward         = get_steering_reward(params) #0 to 10
     print("heading_reward: ", heading_reward)
     print("speed_reward: ", speed_reward)
+    print("steering_reward", steering_reward)
     print("on_smooth_track_reward: ", on_smooth_track_reward)
 
-    reward = (speed_reward * heading_reward * 5) + (on_smooth_track_reward * 3)
-    return reward
+    reward = (speed_reward * heading_reward * steering_reward) + (speed_reward + heading_reward + steering_reward)
+    return reward*on_smooth_track_reward
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
-        return 0.001
+        return 1e-12
     return float(calc_sub_reward_and_aggregate(params))
 
 def reward_function(params):
