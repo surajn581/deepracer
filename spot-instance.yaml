@@ -203,10 +203,10 @@ Resources:
                 <body>
 
                 <h2>Video Feeds</h2>
-                <p><a href="/?robo=all&camera=kvs_stream&quality=75&width=480">Live KVS Stream</a></p>
-                <p><a href="/?robo=all&camera=camera&quality=75&width=480">Live Camera</a></p>
-                <p><a href="/?robo=all&camera=main_camera&quality=75&width=480">Live Main Camera</a></p>
-                <p><a href="/?robo=all&camera=sub_camera&quality=75&width=480">Live Sub Camera</a></p>
+                <p><a href="/?robo=all&camera=kvs_stream&quality=12&width=360">Live KVS Stream</a></p>
+                <p><a href="/?robo=all&camera=camera&quality=12&width=360">Live Camera</a></p>
+                <p><a href="/?robo=all&camera=main_camera&quality=12&width=360">Live Main Camera</a></p>
+                <p><a href="/?robo=all&camera=sub_camera&quality=12&width=360">Live Sub Camera</a></p>
                                 
                 <h2>All logs summary in one view</h2>
                 <p><a href="output.txt">Output</a></p>
@@ -544,7 +544,7 @@ Resources:
                 done
 
                 JUPYTER_URL=http://$PUBLIC_IP:8888/?$TOKEN
-                GRAFANA_URL="http://$PUBLIC_IP:3000/d/adke0lwv5zwg0e/deepracer-training-template?orgId=1&refresh=10s"
+                GRAFANA_URL="http://$PUBLIC_IP:3000/d/adke0lwv5zwg0e/deepracer-training-template?orgId=1&refresh=5s"
 
                 sudo sed -i "s|update_to_jupyter_url|${JUPYTER_URL}|" /home/ubuntu/bin/menu.html
                 sudo sed -i "s|update_to_grafana_url|${GRAFANA_URL}|" /home/ubuntu/bin/menu.html
