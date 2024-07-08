@@ -34,6 +34,7 @@ smoothPath = []
 turnPoints = []
 angleChange = []
 optimalVelocity = []
+prevSmoothPathReward = []
 
 class SteeringUtils:
 
@@ -414,7 +415,7 @@ def get_heading_direction_diff(params):
 
     # Calculate the direction of the center line based on the closest waypoints
     next_point = waypoints[closest_waypoints[1]]
-    prev_point = waypoints[closest_waypoints[0]]
+    prev_point = (params['x'], params['y'])
 
     # Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
     track_direction = math.atan2(next_point[1] - prev_point[1], next_point[0] - prev_point[0])
@@ -446,13 +447,28 @@ def following_smooth_path_reward(params):
     '''
     output range: 0 to 1
     '''
+    global prevSmoothPathReward
     waypoints = _get_waypoints(params)
     closest_waypoints = params['closest_waypoints']
     next = waypoints[closest_waypoints[1]]
     prev = waypoints[closest_waypoints[0]]
     self = (params['x'], params['y'])
     distance = distanceFromLine( prev, next, self )
-    return 1/( (1+float(distance))**8 )
+    reward = 1/( (1+float(distance))**8 )
+
+    if len(prevSmoothPathReward)>10:
+        prevSmoothPathReward.pop(0)
+    prevSmoothPathReward.append(reward)
+
+    if all( [r>0.8 for r in prevSmoothPathReward] ):
+        reward = 5
+
+    return reward
+
+def get_steps_reward(params):
+    steps = params['steps']
+    progress = params['progress']
+    return 10*progress/(1+steps)
 
 def get_steering_reward(params):
     waypoints = _get_waypoints(params)
@@ -468,18 +484,30 @@ def calc_sub_reward_and_aggregate(params):
     speed_reward            = is_higher_speed_favorable(params) # 1 to 10
     on_smooth_track_reward  = following_smooth_path_reward(params) # 0 to 1
     steering_reward         = get_steering_reward(params) #0 to 10
+    steps_reward            = get_steps_reward(params)
     print("heading_reward: ", heading_reward)
     print("speed_reward: ", speed_reward)
     print("steering_reward", steering_reward)
+    print('steps reward: ', steps_reward)
     print("on_smooth_track_reward: ", on_smooth_track_reward)
 
-    reward = speed_reward + heading_reward + steering_reward + on_smooth_track_reward*100
+    reward = 1.2* speed_reward * heading_reward + 1.5*steering_reward + steps_reward + 1.5*on_smooth_track_reward
     return reward
+
+def normalize_reward(reward):
+    old_value = reward
+    old_min = 0
+    old_max = 150
+    new_min = 0
+    new_max = 10
+    new_value = ( (old_value - old_min) / float(old_max - old_min) ) * (new_max - new_min) + new_min
+    return new_value
 
 def calculate_reward(params):
     if params["is_offtrack"] or params["is_crashed"]:
-        return 1e-12
-    return float(calc_sub_reward_and_aggregate(params))
+        return -3
+    reward = float(calc_sub_reward_and_aggregate(params))
+    return normalize_reward(reward)
 
 def reward_function(params):
     reward = float(calculate_reward(params))
