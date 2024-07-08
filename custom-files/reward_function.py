@@ -399,16 +399,16 @@ def following_smooth_path_reward(params):
     return 10/( (1+float(distance))**4 )
 
 def calc_sub_reward_and_aggregate(params):
-    heading_reward          = get_heading_reward(params) * 10 # 0.01 to 10
-    speed_reward            = is_higher_speed_favorable(params) * 10 # 1 to 10
-    on_smooth_track_reward  = following_smooth_path_reward(params) * 5 # 0 to 10
+    heading_reward          = get_heading_reward(params) # 0.01 to 10
+    speed_reward            = is_higher_speed_favorable(params) # 1 to 10
+    on_smooth_track_reward  = following_smooth_path_reward(params) # 0 to 10
     # reward                  = ( speed_reward + heading_reward + on_smooth_track_reward )**2 + ( speed_reward * heading_reward * on_smooth_track_reward )
     # reward                  = reward/100 # to ensure that the output is not crazily high
     print("heading_reward: ", heading_reward)
     print("speed_reward: ", speed_reward)
     print("on_smooth_track_reward: ", on_smooth_track_reward)
 
-    reward = speed_reward + heading_reward + on_smooth_track_reward
+    reward = (speed_reward * heading_reward * 5) + (on_smooth_track_reward * 3)
     return reward
 
 def calculate_reward(params):
