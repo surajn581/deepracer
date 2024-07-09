@@ -27,7 +27,7 @@ def straightening_unnecessary_curves(race_line):
             imp_race_line[section_start_idx+idx] = (imp_x_cord,imp_y_cord)
     return imp_race_line
 def singlecall(params):
-    print("Calling singlecall function..")
+    #print("Calling singlecall function..")
     global calledOnce
     waypoints = params['waypoints']
     i = 0
@@ -50,10 +50,10 @@ def singlecall(params):
     
     finaloptimumpointlist = straightening_unnecessary_curves(optimumpointlist)
     
-    print("key: >@{%6g742p#p2[!fp2jf72gh824pf?24[f*247g49n4")
-    print(params['waypoints'])
-    print(optimumpointlist)
-    print(finaloptimumpointlist)
+    #print("key: >@{%6g742p#p2[!fp2jf72gh824pf?24[f*247g49n4")
+    #print(params['waypoints'])
+    #print(optimumpointlist)
+    #print(finaloptimumpointlist)
     calledOnce = True
 
 
@@ -243,12 +243,16 @@ def reward_function(params):
             # reward += accumulated_progress_reward
             PARAM.accumulated_progress_reward = 0
 
-    print('r:', reward, ' str:', steer_reward, ' dr:', distance_reward)
-    print('isz:', is_speed_zone, ' spr:', speed_reward)
-    print('pgrc:', progress_reward_check, ' acpgr:', PARAM.accumulated_progress_reward, ' avpgr:', PARAM.avg_reward)
-    print('x:', params['x'], ' y:', params['y'], ' cwi:', optimized_closest_waypoints)
-    print('cw0:', optimumpointlist[optimized_closest_waypoints[0]][0], optimumpointlist[optimized_closest_waypoints[0]][1])
-    print('cw1:', optimumpointlist[optimized_closest_waypoints[1]][0], optimumpointlist[optimized_closest_waypoints[1]][1])
+    print('speed reward: ', speed_reward)
+    print('steer reward: ', steer_reward)
+    print('distance reward: ', distance_reward)
+    print('final reward: ', reward)
+    #print('r:', reward, ' str:', steer_reward, ' dr:', distance_reward)
+    #print('isz:', is_speed_zone, ' spr:', speed_reward)
+    #print('pgrc:', progress_reward_check, ' acpgr:', PARAM.accumulated_progress_reward, ' avpgr:', PARAM.avg_reward)
+    #print('x:', params['x'], ' y:', params['y'], ' cwi:', optimized_closest_waypoints)
+    #print('cw0:', optimumpointlist[optimized_closest_waypoints[0]][0], optimumpointlist[optimized_closest_waypoints[0]][1])
+    ##print('cw1:', optimumpointlist[optimized_closest_waypoints[1]][0], optimumpointlist[optimized_closest_waypoints[1]][1])
 
     if PARAM.total_reward is not None and PARAM.avg_reward is not None:
         PARAM.total_reward += reward
