@@ -260,10 +260,19 @@ class SteeringUtils:
         reward = max( float(reward), 1e-6 )
         return reward
     
+def normalize_reward(reward):
+    old_value = reward
+    old_min = 0.17
+    old_max = 2.5
+    new_min = -1
+    new_max = 1
+    new_value = ( (old_value - old_min) / float(old_max - old_min) ) * (new_max - new_min) + new_min
+    return new_value
+    
 def reward_function(params):
 
     if params["is_offtrack"] or params["is_crashed"]:
-        return -1.0
+        return -2.0
     
     path_object = Path( params['waypoints'] )
     
@@ -283,5 +292,8 @@ def reward_function(params):
     print('steer reward: ', steering_reward)
     print('distance reward: ', distance_reward)
     print('final reward: ', reward)
+
+    reward = normalize_reward(reward)
+    print('normalized reward: ', reward)
 
     return reward
