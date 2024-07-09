@@ -91,7 +91,7 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = 1/( (1+float(distance*2.5))**2 )
+        reward = max(1-distance, 1e-3)
         return reward
     
     def optimal_speed(self, params):
@@ -104,8 +104,8 @@ class Path:
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
         diff = abs( params['speed'] - optimal_speed )
-        reward = 1/( (1+float(diff))**2 )
-        return reward
+        reward = 1 - diff/2.5
+        return max(reward, 1e-3)
     
 class ProgressReward:
     def reward(params):
@@ -254,14 +254,14 @@ class SteeringUtils:
         ideal_aangle = SteeringUtils.right_steering(params)
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/40.0
-        reward = 2/(1 + math.exp(diff)**2)  # this will give 0 to 1 in a stable smooth curve for diff between 0-180
-        return reward
+        reward = 1 - diff
+        return max(reward, 1e-3)
     
 def normalize_reward(reward):
     old_value = reward
     old_min = 0.126
     old_max = 3.253
-    new_min = -1
+    new_min = 0
     new_max = 1
     new_value = ( (old_value - old_min) / float(old_max - old_min) ) * (new_max - new_min) + new_min
     return new_value
@@ -269,7 +269,7 @@ def normalize_reward(reward):
 def reward_function(params):
 
     if params["is_offtrack"] or params["is_crashed"]:
-        return -5.0
+        return -1.0
     
     path_object = Path( params['waypoints'] )
     
@@ -289,7 +289,7 @@ def reward_function(params):
     print('distance reward: ', distance_reward)
     print('final reward: ', reward)
 
-    reward = normalize_reward(reward)
-    print('normalized reward: ', reward)
+    # reward = normalize_reward(reward)
+    # print('normalized reward: ', reward)
 
     return reward
