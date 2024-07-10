@@ -259,8 +259,8 @@ class SteeringUtils:
     
 def normalize_reward(reward):
     old_value = reward
-    old_min = 0.126
-    old_max = 3.253
+    old_min = 0
+    old_max = 2.8
     new_min = 0
     new_max = 1
     new_value = ( (old_value - old_min) / float(old_max - old_min) ) * (new_max - new_min) + new_min
@@ -277,8 +277,8 @@ def reward_function(params):
     steering_reward = SteeringUtils.reward( params )
     speed_reward    = path_object.optimal_speed_reward( params )
 
-    if path_object.optimal_speed( params ) > 2:
-        steering_reward = 1.8*steering_reward
+    # if path_object.optimal_speed( params ) > 2:
+    #     steering_reward = 1.8*steering_reward
     reward = steering_reward + speed_reward + distance_reward
 
     # if params['progress'] > 10 and params['progress'] % 10 == 0:
@@ -289,7 +289,7 @@ def reward_function(params):
     print('distance reward: ', distance_reward)
     print('final reward: ', reward)
 
-    # reward = normalize_reward(reward)
-    # print('normalized reward: ', reward)
+    reward = normalize_reward(reward)
+    print('normalized reward: ', reward)
 
     return reward
