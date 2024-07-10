@@ -91,7 +91,7 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = (1/( (1+float(abs(distance))) ) - 0.5) * 2
+        reward = max(1e-3, 1 - (distance/(1.067*0.5)))
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
@@ -104,7 +104,7 @@ class Path:
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
         diff = abs( params['speed'] - optimal_speed )
-        reward = (1/( (1+float(diff)) ) - 0.25) * 1.33333
+        reward = (1 - (diff**2))
         return max(reward, 1e-3)
 class SpeedUtils:
 
@@ -153,8 +153,7 @@ class SpeedUtils:
         radius = []
         for i in range(len(track)):
             indexes = SpeedUtils.circle_indexes(track, i, add_index_1=-1, add_index_2=1)
-            coords = [track[indexes[0]],
-                    track[indexes[1]], track[indexes[2]]]
+            coords = [track[indexes[0]], track[indexes[1]], track[indexes[2]]]
             radius.append(SpeedUtils.circle_radius(coords))
 
         # Get the max_velocity for the smallest radius
@@ -181,10 +180,8 @@ class SpeedUtils:
                         mylist=radius, index_car=i, add_index_1=j)[1]
                     next_n_radius.append(radius[index])
                 radius_lookahead.append(min(next_n_radius))
-            max_velocity_lookahead = [(constant_multiple * i**0.5)
-                                    for i in radius_lookahead]
-            velocity_lookahead = [min(v, max_speed)
-                                for v in max_velocity_lookahead]
+            max_velocity_lookahead = [(constant_multiple * i**0.5) for i in radius_lookahead]
+            velocity_lookahead = [min(v, max_speed) for v in max_velocity_lookahead]
             
             SpeedUtils.OPTIMAL_VELOCITES = velocity_lookahead
             return velocity_lookahead
@@ -265,13 +262,12 @@ def reward_function(params):
     
     path_object = Path( params['waypoints'] )
     
-    distance_reward = path_object.on_track_reward( params ) * 10
-    steering_reward = SteeringUtils.reward( params ) * 10
-    speed_reward    = path_object.optimal_speed_reward( params ) * 10
+    distance_reward = path_object.on_track_reward( params )
+    steering_reward = SteeringUtils.reward( params )
+    speed_reward    = path_object.optimal_speed_reward( params )
 
-    reward = (2*steering_reward + 0.75*speed_reward + distance_reward)
+    reward = 2*steering_reward + 1.5*speed_reward + 1.5*distance_reward
 
-    print('steering_reward:', steering_reward, 'distance_reward:', distance_reward, 'speed_reward :', speed_reward,
-          'total:', reward)
+    print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'total: ', reward)
 
     return reward
