@@ -103,8 +103,8 @@ class Path:
 
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
-        diff = abs( params['speed'] - optimal_speed )
-        reward = (1 - diff)
+        diff = abs( params['speed'] - optimal_speed )/2.6
+        reward = 1 - diff
         return max(reward, 1e-3)
 class SpeedUtils:
 
