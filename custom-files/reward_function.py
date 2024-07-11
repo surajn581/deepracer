@@ -266,7 +266,7 @@ def reward_function(params):
     steering_reward = SteeringUtils.reward( params )
     speed_reward    = path_object.optimal_speed_reward( params )
 
-    if path_object.optimal_speed(params) > 2:
+    if path_object.optimal_speed(params) > 2 and steering_reward > 0.7:
         steering_reward = 2*steering_reward
 
     reward = steering_reward + speed_reward + distance_reward
