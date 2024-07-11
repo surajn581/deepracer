@@ -104,7 +104,7 @@ class Path:
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
         diff = abs( params['speed'] - optimal_speed )
-        reward = (1 - (diff**2))
+        reward = (1 - diff)
         return max(reward, 1e-3)
 class SpeedUtils:
 
@@ -257,17 +257,21 @@ def normalize_reward(reward):
     
 def reward_function(params):
 
-    if params["is_offtrack"] or params["is_crashed"]:
-        return -1.5
-    
     path_object = Path( params['waypoints'] )
+
+    off_track_penalty = -2.0
+    if path_object.optimal_speed(params) >= 2:
+        off_track_penalty = -5.0
+
+    if params["is_offtrack"] or params["is_crashed"]:
+        return off_track_penalty
     
     distance_reward = path_object.on_track_reward( params )
     steering_reward = SteeringUtils.reward( params )
     speed_reward    = path_object.optimal_speed_reward( params )
 
-    if path_object.optimal_speed(params) > 2 and steering_reward > 0.7:
-        steering_reward = 2*steering_reward
+    if path_object.optimal_speed(params) >= 2:
+        steering_reward = 1.5*steering_reward
 
     reward = steering_reward + speed_reward + distance_reward
 
