@@ -91,7 +91,7 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = max(1e-3, 1 - (distance/(1.067*0.5)))
+        reward = max(1e-3, 1 - (distance/(1.067*0.8)))
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
@@ -243,7 +243,7 @@ class SteeringUtils:
         ideal_aangle = SteeringUtils.right_steering(params)
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/60.0
-        reward = ( 1/( (1+float(abs(diff)/20) ) ) - 0.25 ) * 1.3333333
+        reward = 1 - diff
         return max(reward, 1e-3)
     
 def normalize_reward(reward):
