@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.066*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.07*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -76,7 +76,7 @@ class Path:
         path = [ self._path[ (i+offset)%len(self._path) ] for i in range( len(self._path) )  ]
         return path[:n]
 
-    def closest_within(self, point, threshold = 0.9*1.067):
+    def closest_within(self, point, threshold = 0.9*1.07):
         closest = self.closest(point, len(self._path))
         for close_point in closest:
             if Utils.distance( point, close_point ) > threshold:
@@ -91,11 +91,11 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = max(1e-3, 1 - (distance/(1.067*0.8)))
+        reward = max(1e-3, 1 - (distance/(params['track_width']*0.8)))
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
-        optimal_velocities = SpeedUtils.optimal_velocity( self.get(), 1.0, 4.0, 6 )
+        optimal_velocities = SpeedUtils.optimal_velocity( self.get(), 1.0, 4.0, 2 )
         next = self.closest( (params['x'], params['y']) )[1]
         index = self.get().index( next )
         optimal_velocity = optimal_velocities[ index ]
@@ -103,7 +103,7 @@ class Path:
 
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
-        diff = abs( params['speed'] - optimal_speed )/2.6
+        diff = abs( params['speed'] - optimal_speed )/3
         reward = 1 - diff
         return max(reward, 1e-3)
 class SpeedUtils:
@@ -233,7 +233,7 @@ class SteeringUtils:
     @staticmethod
     def right_steering(params):
         current_point = ( params['x'], params['y'] )
-        target_point = Path(params).closest_within( current_point )
+        target_point = Path(params).closest_within( current_point, 0.9*params['track_width'] )
         path_angle = Utils.angle_between_points(current_point, target_point)
         steering_angle = path_angle - params['heading']
         return Utils.normalize_angle(steering_angle)
@@ -256,6 +256,10 @@ def normalize_reward(reward):
     return new_value
     
 def reward_function(params):
+
+    print('-'*100)
+    print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
+    print('-'*100)
 
     path_object = Path( params['waypoints'] )
 
