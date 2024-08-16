@@ -1,6 +1,6 @@
 {
   "batch_size": 64,
-  "beta_entropy": 0.01,
+  "beta_entropy": 0.05,
   "discount_factor": 0.9,
   "e_greedy_value": 1.0,
   "epsilon_steps": 10000,
