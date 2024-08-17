@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.07*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.059*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -76,7 +76,7 @@ class Path:
         path = [ self._path[ (i+offset)%len(self._path) ] for i in range( len(self._path) )  ]
         return path[:n]
 
-    def closest_within(self, point, threshold = 0.9*1.07):
+    def closest_within(self, point, threshold = 0.9*1.059):
         closest = self.closest(point, len(self._path))
         for close_point in closest:
             if Utils.distance( point, close_point ) > threshold:
