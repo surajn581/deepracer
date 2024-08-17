@@ -54,16 +54,16 @@ class SmoothPath:
                 new_line[i][1] = (0.98 * new_line[i][1]) + (0.02 * center_line[i][1])
         return new_line
 class Path:
-    def __init__(self, waypoints, upsample = True):
+    def __init__(self, waypoints, upsample = 1):
         self._path = SmoothPath.init(waypoints)
-        if upsample:
-            self._path = Path.up_sample( self._path )
+        if upsample>1:
+            self._path = Path.up_sample( self._path, upsample )
 
     def get(self):
         return self._path
 
     @staticmethod
-    def up_sample(waypoints, factor = 20):
+    def up_sample(waypoints, factor = 2):
         return [ list(point) for point in list( signal.resample(np.array(waypoints), len(waypoints) * factor) ) ]
     
     def closest(self, point, n = None):
@@ -91,7 +91,7 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = max(1e-3, 1 - (distance/(params['track_width']*0.8)))
+        reward = max(1e-3, 1 - (abs(distance)/(1.07)))
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
@@ -103,7 +103,7 @@ class Path:
 
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
-        diff = abs( params['speed'] - optimal_speed )/3
+        diff = abs( params['speed'] - optimal_speed )/3.0
         reward = 1 - diff
         return max(reward, 1e-3)
 class SpeedUtils:
@@ -112,6 +112,7 @@ class SpeedUtils:
 
     @staticmethod
     def circle_radius(coords):
+
         # Flatten the list and assign to variables (makes code easier to read later)
         x1, y1, x2, y2, x3, y3 = [i for sub in coords for i in sub]
 
@@ -148,24 +149,26 @@ class SpeedUtils:
         if SpeedUtils.OPTIMAL_VELOCITES:
             return SpeedUtils.OPTIMAL_VELOCITES
 
-        print('caclulating optimal velocity')
         # Calculate the radius for every point of the track
         radius = []
         for i in range(len(track)):
             indexes = SpeedUtils.circle_indexes(track, i, add_index_1=-1, add_index_2=1)
-            coords = [track[indexes[0]], track[indexes[1]], track[indexes[2]]]
+            coords = [track[indexes[0]],
+                    track[indexes[1]], track[indexes[2]]]
             radius.append(SpeedUtils.circle_radius(coords))
 
         # Get the max_velocity for the smallest radius
         # That value should multiplied by a constant multiple
         v_min_r = min(radius)**0.5
         constant_multiple = min_speed / v_min_r
+        # print(f"Constant multiple for optimal speed: {constant_multiple}")
 
         if look_ahead_points == 0:
             # Get the maximal velocity from radius
             max_velocity = [(constant_multiple * i**0.5) for i in radius]
             # Get velocity from max_velocity (cap at MAX_SPEED)
             velocity = [min(v, max_speed) for v in max_velocity]
+            SpeedUtils.OPTIMAL_VELOCITES = velocity
             return velocity
 
         else:
@@ -180,9 +183,10 @@ class SpeedUtils:
                         mylist=radius, index_car=i, add_index_1=j)[1]
                     next_n_radius.append(radius[index])
                 radius_lookahead.append(min(next_n_radius))
-            max_velocity_lookahead = [(constant_multiple * i**0.5) for i in radius_lookahead]
-            velocity_lookahead = [min(v, max_speed) for v in max_velocity_lookahead]
-            
+            max_velocity_lookahead = [(constant_multiple * i**0.5)
+                                    for i in radius_lookahead]
+            velocity_lookahead = [min(v, max_speed)
+                                for v in max_velocity_lookahead]
             SpeedUtils.OPTIMAL_VELOCITES = velocity_lookahead
             return velocity_lookahead
 
@@ -233,7 +237,7 @@ class SteeringUtils:
     @staticmethod
     def right_steering(params):
         current_point = ( params['x'], params['y'] )
-        target_point = Path(params).closest_within( current_point, 0.9*params['track_width'] )
+        target_point = Path(params['waypoints'], 2).closest_within( current_point, 0.9*params['track_width'] )
         path_angle = Utils.angle_between_points(current_point, target_point)
         steering_angle = path_angle - params['heading']
         return Utils.normalize_angle(steering_angle)
@@ -261,11 +265,11 @@ def reward_function(params):
     print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
     print('-'*100)
 
-    path_object = Path( params['waypoints'] )
+    path_object = Path( params['waypoints'], 2)
 
     off_track_penalty = -2.0
-    if path_object.optimal_speed(params) <= 2:
-        off_track_penalty = -5.0
+    # if path_object.optimal_speed(params) <= 2:
+    #     off_track_penalty = -5.0
 
     if params["is_offtrack"] or params["is_crashed"]:
         return off_track_penalty
@@ -274,8 +278,8 @@ def reward_function(params):
     steering_reward = SteeringUtils.reward( params )
     speed_reward    = path_object.optimal_speed_reward( params )
 
-    if path_object.optimal_speed(params) <= 2:
-        steering_reward = 1.5*steering_reward
+    # if path_object.optimal_speed(params) <= 2:
+    #     steering_reward = 1.5*steering_reward
 
     reward = steering_reward + speed_reward + distance_reward
 
