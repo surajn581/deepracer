@@ -281,7 +281,7 @@ def reward_function(params):
     # if path_object.optimal_speed(params) <= 2:
     #     steering_reward = 1.5*steering_reward
 
-    reward = steering_reward + speed_reward + distance_reward
+    reward = steering_reward**2 + speed_reward**2 + distance_reward**2
 
     print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'total: ', reward)
 
