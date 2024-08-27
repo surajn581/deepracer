@@ -272,8 +272,8 @@ def reward_function(params):
     path_object = Path( params['waypoints'], 2)
 
     off_track_penalty = -2.0
-    if path_object.optimal_speed(params) <= 2:
-        off_track_penalty = -5.0
+    # if path_object.optimal_speed(params) <= 2:
+    #     off_track_penalty = -5.0
 
     if params["is_offtrack"] or params["is_crashed"]:
         return off_track_penalty
@@ -282,8 +282,8 @@ def reward_function(params):
     steering_reward = SteeringUtils.reward( params )
     speed_reward    = path_object.optimal_speed_reward( params )
 
-    if path_object.optimal_speed(params) <= 2:
-        steering_reward = 1.5*steering_reward
+    # if path_object.optimal_speed(params) <= 2:
+    #     steering_reward = 1.5*steering_reward
 
     reward = steering_reward + speed_reward + distance_reward
 
