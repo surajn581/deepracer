@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.059*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.07*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -54,6 +54,10 @@ class SmoothPath:
                 new_line[i][1] = (0.98 * new_line[i][1]) + (0.02 * center_line[i][1])
         return new_line
 class Path:
+
+    MIN_SPEED = 1.4
+    MAX_SPEED = 4.0
+
     def __init__(self, waypoints, upsample = 1):
         self._path = SmoothPath.init(waypoints)
         if upsample>1:
@@ -76,7 +80,7 @@ class Path:
         path = [ self._path[ (i+offset)%len(self._path) ] for i in range( len(self._path) )  ]
         return path[:n]
 
-    def closest_within(self, point, threshold = 0.9*1.059):
+    def closest_within(self, point, threshold = 0.9*1.07):
         closest = self.closest(point, len(self._path))
         for close_point in closest:
             if Utils.distance( point, close_point ) > threshold:
@@ -95,7 +99,7 @@ class Path:
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
-        optimal_velocities = SpeedUtils.optimal_velocity( self.get(), 1.0, 4.0, 2 )
+        optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, 2 )
         next = self.closest( (params['x'], params['y']) )[1]
         index = self.get().index( next )
         optimal_velocity = optimal_velocities[ index ]
@@ -103,7 +107,7 @@ class Path:
 
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
-        diff = abs( params['speed'] - optimal_speed )/3.0
+        diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED-Path.MIN_SPEED)
         reward = 1 - diff
         return max(reward, 1e-3)
 class SpeedUtils:
