@@ -55,7 +55,7 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.4
+    MIN_SPEED = 1.2
     MAX_SPEED = 4.0
 
     def __init__(self, waypoints, upsample = 1):
