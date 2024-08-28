@@ -4,7 +4,7 @@ Description: Setup a spot EC2 Autoscaling Group for deep racer
 Parameters:
   InstanceType:
     Type: String
-    Default: g4dn.2xlarge
+    Default: g4dn.4xlarge
   ResourcesStackName:
     Type: String
   DeepRacerImportName:
