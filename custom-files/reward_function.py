@@ -55,8 +55,9 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.2
+    MIN_SPEED = 1.5
     MAX_SPEED = 4.0
+    LOOK_AHEAD = 7
 
     def __init__(self, waypoints, upsample = 1):
         self._path = SmoothPath.init(waypoints)
@@ -99,7 +100,7 @@ class Path:
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
-        optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, 2 )
+        optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD )
         next = self.closest( (params['x'], params['y']) )[1]
         index = self.get().index( next )
         optimal_velocity = optimal_velocities[ index ]
