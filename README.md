@@ -9,7 +9,9 @@ Training on an EC2 has many advantages:
 <li>Ability to increment your training
 <li>Improved log analysis tools
 <li>Train as multiple models at once on different EC2 instances
-<li>Reduced cost: $0.22/hour (when using g4dn.2xlarge spot instance, or $0.75/hr when using on demand instance https://aws.amazon.com/ec2/pricing/on-demand/) cost of training versus $3.50/hour on amazon console
+<li>Reduced cost: $0.22/hour (when using g4dn.2xlarge spot instance, or $0.75/hr when using on demand instance https://aws.amazon.com/ec2/pricing/on-demand/) cost of training versus $3.50/hour on the Amazon console.  
+
+Check the latest spot pricing for suitable GPU instances via this [automated price checker](spot_info.md)
 
 ## Architectural Overview
 
@@ -49,7 +51,7 @@ The primary purpose of this template is to provide a simple single script to run
 * EC2 quota limit increases to be able to run 2 x g4dn.2xlarge spot or on demand instances (See FAQs if AWS query the rationale for the quota request)
 * Role used to import finished model into the AWS DeepRacer console
 
-This bash script utilizes the base.resources.yaml template file to provision the above resources. 
+This bash script utilizes the base.resources.yaml template file to provision the above resources. Note - if your public IP later changes (e.g. you reboot your router and your ISP changes your IP address) you can re-run this script with the same stack?Name with the updated ip parameter and the stack will just modify the appropriate config.
 
 ---
 ## Create Standard/Spot Instance
@@ -69,11 +71,11 @@ Example:
 Once this script completes, two links will be printed to console that show the visual training of the model and the log links of the training model I.E. ( 3.87.87.207:8080 and http://3.87.87.207:8100/menu.html respectively ). Paste these into your browser and **wait 5-7 minutes for training to begin**. On the visual training page, the link "/racecar/main_camera/zed/rgb/" will look most similar to the DeepRacer Console.
 
 create-standard-instance.sh creates a single on demand ec2 instance. The instance type used is configured as the default in the standard-instance.yaml cloudformation template file.
-create-spot-instance.sh creates an Autoscaling Group comprised of a desired capacity of a single spot ec2 instance if available. This is a fantastic way to save a lot of money on training DeepRacer models, as training on a g4dn.2xl spot instance can get you 4 workers at $0.22/hour (compared to $3.50/hour for 1 worker in console). Note, deployment may fail if there isn't any spot instances of this size available. Procuring a spot instance is most common outside of US work hours.  If training is interrupted by a spot termination, assuming new spot capacity becomes available during your defined training 'timeToLiveInMinutes' a new Spot instance will be created within the autoscaling group and the training will continue from where it terminated.  This will create additional files in your S3 bucket, as subsequent training will be uploaded with -continued-YYYYMMDD-HHMM appended to your training (DR_LOCAL_S3_MODEL_PREFIX) and upload (DR_UPLOAD_S3_PREFIX) locations. If you struggle to get spot capacity you could deploy in another region, but if you do this you need to create an AMI (using scripts/create-image-builder.sh).
+create-spot-instance.sh creates an Autoscaling Group comprised of a desired capacity of a single spot ec2 instance if available. This is a fantastic way to save a lot of money on training DeepRacer models, as training on a g4dn.2xl spot instance can get you 4 workers at $0.22/hour (compared to $3.50/hour for 1 worker in console). Note, deployment may fail if there isn't any spot instances of this size available. Procuring a spot instance is most common outside of US work hours.  If training is interrupted by a spot termination, assuming new spot capacity becomes available during your defined training 'timeToLiveInMinutes' a new Spot instance will be created within the autoscaling group and the training will continue from where it terminated.  This will create additional files in your S3 bucket, as subsequent training will either add -1 to your folders or will increment the last number if your name ends with a number for both your training (DR_LOCAL_S3_MODEL_PREFIX) and upload (DR_UPLOAD_S3_PREFIX) locations. If you struggle to get spot capacity you could deploy in another region, but if you do this you need to create an AMI (using scripts/create-image-builder.sh).
 
 This script can be executed many times (the DeepRacer console limits you to training a max of 4 concurrent models), with different instance stack names. All the different instances will share the base resources (efs and s3).  It is strongly recommended if using spot training and you want to run execute this script multiple times concurrently that you define unique locations for where your custom files are stored (DR_LOCAL_S3_CUSTOM_FILES_PREFIX).  This is because the spot interruption handler updated the run.env to be able to continue previous training, failing to alter this could result in overwriting training of one model with the previous progress of a different model being trained concurrently.
 
-Both spot and standard instance requests are launched using a daily refreshing AMI that is generated in a source AWS account to always grab the newest docker images for robomaker/sagemaker/coach. If you wish to run your own AMI, or run in a region other than us-east-1, use ./create-image-builder.sh to create the daily refreshing pipeline and update your spot/standard instance bash scripts to use your AMI. NOTE: using your own AMI will incur a charge of ~$1/day because an EC2 instance will be created daily to update the AMI.
+Both spot and standard instance requests are launched using a monthly refreshing AMI that is generated in a source AWS account to always grab the newest docker images for robomaker/sagemaker/coach. If you wish to run your own AMI, or run in a region other than us-east-1, use ./create-image-builder.sh to create the monthly refreshing pipeline and update your spot/standard instance bash scripts to use your AMI. NOTE: using your own AMI will incur a charge of ~$1/month because an EC2 instance will be created monthly to update the AMI.
 
 ---
 ### MENU
@@ -92,14 +94,20 @@ The script stop-training.sh executes 'safe termination' of training by updated t
 
 ### Adding additional IP addresses to security group ingress and NACLs
 
-The script add-access.sh adds an additional IP address to the security group ingress, it also add an NACL entry. Use:  `./add-access.sh <base resources stack name> <stack name> <IP address>`
+The script add-access.sh checks if the IP address given as parameter does not exist already in the Network ACLs and then, adds an additional IP address to the security group ingress, it also add an NACL entry. Use:  `./add-access.sh <base resources stack name> <stack name> <IP address>`.  This is useful if you have multiple locations where you'd want to monitor your training from.
 
 ### Subscribing email addresses to the 'spot instance interruption notification topic' (the topic is created by the base resources stack)
 
-The script add-interruption-notification-subscription.sh script adds an email address to the 'interruption notification topic.'
+The script add-interruption-notification-subscription.sh adds an email address to the 'interruption notification topic.'
 Use: `./add-interruption-notification-subscription.sh <base resources stack name> <stack name> <email address>`
 
 Note, it is also possible to interactively create a subscription on the SNS web console. Adding an email subscription results in an email, with a confirmation link in it, being sent to the email address. Not published message is forwarded to the email prior to the user having confirmed the subscription (by clicking on the link in the original subscription notification email).
+
+## Checking instances on same Sandbox
+
+The script check-instances.sh provides a list showing the recent instances, their current status and PUBLIC_IP. It is an eazy way where users don't need to track/save the PUBLIC_IP after starting each training ( PUBLIC_IP:8100/menu.html ). On the other hand, if the users have executed recently the script stop-training.sh my-instance-stack-name, this my-instance-stack-name instance will be displayed as terminated.
+
+Use. `./check-instances.sh`
 
 ## Image Builder
 
@@ -118,6 +126,14 @@ To use cd into scripts directory and run `./create-image-builder.sh <base resour
 ## delete-base-resources.sh
 
 This script can be used to delete the resources created by the create-base-resources.sh script (and associated template). Please be aware that the resource deletion will fail if the S3 bucket created is not empty. delete-base-resources.sh takes a single mandatory parameter, the stack-name, same value as above.
+
+## get-spot-prices.sh
+
+This script will check the prices of g4dn, g5, g6 and g6e instances of sizes 2xlarge, 4xlarge and 8xlarge in every AWS region and return the results.  By default it won't filter the results and will show them ordered by PricePerWorkerHour (i.e. instance price per hour divided by the suggested number of workers the instance can host).  Using the --help parameter will show supported values for optional parameters.--sort_order can change the order you sort the list by to alternative values, e.g. 'SpotPrice' and --interruption_filter allows you to filter the list, for example if you only want to see instances with an interruption frequency of '<5%'.  to learn more about interruption frequency visit the [AWS Spot Instance Advisor](https://aws.amazon.com/ec2/spot/instance-advisor/)
+
+To use cd into scripts directory and run `./get-spot-prices.sh --sort_order '<SORT_ORDER>' --interruption_filter '<INTERRUPTION_FILTER>'`
+
+This example will only show instance with less that 5% chance of being interrupted and ordered by Spot Price ` ./get-spot-prices.sh --sort_order 'SpotPrice' --interruption_filter '<5%'`
 
 ## Other useful links:
 
@@ -139,7 +155,8 @@ If you have an issue with training, the best first place to check is CloudFormat
 | How do I train continuous/SAC instead of discrete action space? | <li>Rename the two example files in custom-files directory "hyperparameters_sac.json" to "hyperparameters.json" and "model_metadata_sac.json" to "model_metadata.json" </li> |
 | What if multiple people use the same AWS sandbox? | <li>CloudShell sessions are unique to each user, and each user can clone this repo and create one base-resource stack and as many trainings as they desire. To share models amongst the same account, copy the model from one s3 bucket to the other. </li> |
 | Quota increase hasn't been assigned | AWS quota increases are handled by AWS support staff, only the request is programmatic.  It's likely the AWS Support team will respond to your request by asking for further information.  It is recommended you respond with 'I'm utilizing this account to participate in AWS DeepRacer.  In the DeepRacer console training for DeepRacer costs $3.50/hour.  In order to reduce my AWS bill I want to use DeepRacer on the Spot, an AWS DeepRacer community developed solution - https://github.com/aws-deepracer-community/deepracer-on-the-spot, which will allow me to training at up to 1/10th the cost of the console. In order to do this I need access to g4dn spot and on demand instances, as per my request.  Therefore please kindly increase my quota.'.  You may want to preempt the question and add this text to the support ticket straight away, unfortunately the code cannot do this for you as API access to update support tickets is only available to AWS Premium Support customers (which starts at $15k/month).  |
-| My model didn't appear in the console after training completed or import failed | <li> This can occassionally happen if the model upload didn't complete before the instance was terminated. Go into the AWS DeepRacer console and import manually following the instructions in the 'Your Models' section after pressing the 'Import Model' button.  You should find your model in the S3 upload folder specified in run.env, or if that process didn't complete you'll find it in the S3 folder specific for training in run.env </li> |
+| My model didn't appear in the console after training completed or import failed | <li> This can occasionally happen if the model upload didn't complete before the instance was terminated. Go into the AWS DeepRacer console and import manually following the instructions in the 'Your Models' section after pressing the 'Import Model' button.  You should find your model in the S3 upload folder specified in run.env, or if that process didn't complete you'll find it in the S3 folder specific for training in run.env </li> |
 | I want to import into the AWS Console models from when my Spot instance was interrupted | <li> The service is configured to only automatically upload models at the end of training, not at the point of Spot interruption. If you'd like to manually import your model from the point of spot interruption then go into the AWS DeepRacer console and import manually following the instructions in the 'Your Models' section after pressing the 'Import Model' button.  You should find your model in the S3 upload folder specified in run.env, or if that process didn't complete you'll find it in the S3 folder specific for training in run.env </li> |
 | My stack doesn't deploy and I get the error 'No export named base-DeepRacerServiceRole found' when trying to start my training | <li> The functionality to automatically add your completed model to the AWS DeepRacer console required an update to the base stack.  Re-run create-base-resources.sh to update your base stack and try again </li> |
 | My stack doesn't deploy and I get null AMI error when trying to start my training | <li> You're using a region where there isn't a provided AMI. Use the create-image-builder.sh script in the scripts folder to create an AMI in the region you want to train in </li> |
+| I can no longer access my training when it's running | <li> Check the public IP where you're accessing from hasn't changed (e.g. ISP changed IP on reboot), if it's changed updated you access by updating the base resources stack or add access stack </li> |
