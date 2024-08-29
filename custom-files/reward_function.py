@@ -57,7 +57,7 @@ class Path:
 
     MIN_SPEED = 1.3
     MAX_SPEED = 4.0
-    LOOK_AHEAD = 7
+    LOOK_AHEAD = 12
 
     def __init__(self, waypoints, upsample = 1):
         self._path = SmoothPath.init(waypoints)
@@ -109,7 +109,7 @@ class Path:
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
         diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED-Path.MIN_SPEED)
-        reward = max(1e-3, diff - 0.5)*2
+        reward = max(1e-3, 1 - diff - 0.5)*2
         return reward
 class SpeedUtils:
 
