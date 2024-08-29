@@ -1,32 +1,17 @@
 {
-    "action_space": [{"steering_angle": -30.0, "speed": 1.4},
-                    {"steering_angle": -29.5875, "speed": 1.5364},
-                    {"steering_angle": -18.773, "speed": 1.8223},
-                    {"steering_angle": -13.8233, "speed": 1.531},
-                    {"steering_angle": -12.9711, "speed": 2.147},
-                    {"steering_angle": -11.6928, "speed": 1.8709},
-                    {"steering_angle": -7.357, "speed": 2.6361},
-                    {"steering_angle": -5.7494, "speed": 3.1764},
-                    {"steering_angle": -3.6721, "speed": 1.7317},
-                    {"steering_angle": -2.0001, "speed": 4.0},
-                    {"steering_angle": -1.6929, "speed": 4.0},
-                    {"steering_angle": -1.2829, "speed": 2.3701},
-                    {"steering_angle": -0.1833, "speed": 4.0},
-                    {"steering_angle": 0.1816, "speed": 3.7913},
-                    {"steering_angle": 0.7537, "speed": 2.6541},
-                    {"steering_angle": 1.0458, "speed": 2.0903},
-                    {"steering_angle": 1.3371, "speed": 3.2564},
-                    {"steering_angle": 1.9924, "speed": 4.0},
-                    {"steering_angle": 7.3444, "speed": 1.9987},
-                    {"steering_angle": 7.3762, "speed": 1.5882},
-                    {"steering_angle": 10.3087, "speed": 2.5812},
-                    {"steering_angle": 11.6759, "speed": 2.219},
-                    {"steering_angle": 15.707, "speed": 1.9705},
-                    {"steering_angle": 20.0564, "speed": 1.6611},
-                    {"steering_angle": 30.0, "speed": 1.4}],
-    "sensor": ["FRONT_FACING_CAMERA"],
-    "neural_network": "DEEP_CONVOLUTIONAL_NETWORK_SHALLOW",
-    "training_algorithm": "clipped_ppo", 
-    "action_space_type": "discrete",
-    "version": "5"
+  "action_space": {
+    "steering_angle": {
+      "high": 30.0,
+      "low": -30.0
+    },
+    "speed": {
+      "high": 4.0,
+      "low": 1.3
+    }
+  },
+  "sensor": ["FRONT_FACING_CAMERA"],
+  "neural_network": "DEEP_CONVOLUTIONAL_NETWORK_SHALLOW",
+  "version": "5",
+  "training_algorithm": "clipped_ppo",
+  "action_space_type": "continuous"
 }
