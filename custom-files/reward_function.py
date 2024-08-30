@@ -96,7 +96,7 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = max(1e-3, 1 - (abs(distance)/(params['track_width']))-0.5)*2
+        reward = max(1e-3, 1 - (abs(distance)/(params['track_width'])))
         return max(reward, 1e-3)
     
     def optimal_speed(self, params):
@@ -109,7 +109,7 @@ class Path:
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
         diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED-Path.MIN_SPEED)
-        reward = max(1e-3, 1 - diff - 0.5)*2
+        reward = max(1e-3, 1 - diff)
         return reward
 class SpeedUtils:
 
