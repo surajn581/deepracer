@@ -255,6 +255,26 @@ class SteeringUtils:
         reward = 1 - diff
         return max(reward, 1e-3)
     
+def progress_reward_factor(params):
+    # Read input variable
+    steps = params['steps']
+    progress = params['progress']
+
+    # Total num of steps we want the car to finish the lap, it will vary depends on the track length
+    TOTAL_NUM_STEPS = 500
+
+    # Initialize the reward with typical value
+    factor = 1.0
+
+    if steps == 0 or progress < 10:
+        return 1
+
+    # Give additional reward if the car pass every 100 steps faster than expected
+    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
+        factor *1.5
+
+    return float(factor)
+    
 def normalize_reward(reward):
     old_value = reward
     old_min = 0.842544
@@ -287,7 +307,9 @@ def reward_function(params):
         steering_reward = 1.5*steering_reward
 
     reward = steering_reward + speed_reward + distance_reward
+    factor = progress_reward_factor(params)
+    reward = reward*factor
 
-    print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'total: ', reward)
+    print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'progress factor: ', factor, 'total: ', reward)
 
     return reward
