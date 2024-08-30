@@ -261,7 +261,7 @@ def progress_reward_factor(params):
     progress = params['progress']
 
     # Total num of steps we want the car to finish the lap, it will vary depends on the track length
-    TOTAL_NUM_STEPS = 500
+    TOTAL_NUM_STEPS = 700
 
     # Initialize the reward with typical value
     factor = 1.0
@@ -271,7 +271,7 @@ def progress_reward_factor(params):
 
     # Give additional reward if the car pass every 100 steps faster than expected
     if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
-        factor *1.5
+        factor = factor*1.5
 
     return float(factor)
     
