@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.07*0.65*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.07*0.55*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -55,7 +55,7 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.1
+    MIN_SPEED = 1.3
     MAX_SPEED = 4.0
     LOOK_AHEAD = 10
 
@@ -198,8 +198,20 @@ class SpeedUtils:
                                     for i in radius_lookahead]
             velocity_lookahead = [min(v, max_speed)
                                 for v in max_velocity_lookahead]
-            SpeedUtils.OPTIMAL_VELOCITES = velocity_lookahead
-            return velocity_lookahead
+            
+            new_velocity = []
+            rev_v = velocity_lookahead[::-1]
+            for i, vel in enumerate(rev_v, LOOK_AHEAD_POINTS):
+                meanN = np.mean(rev_v[i-LOOK_AHEAD_POINTS:i])
+                if vel > 2.1 and vel >= meanN:
+                    new_velocity.append(meanN)
+                else:
+                    new_velocity.append(vel)
+
+            new_velocity = new_velocity[::-1]
+
+            SpeedUtils.OPTIMAL_VELOCITES = new_velocity
+            return new_velocity
 
 class Utils:
 
