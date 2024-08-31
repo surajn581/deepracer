@@ -55,9 +55,9 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.3
+    MIN_SPEED = 1.1
     MAX_SPEED = 4.0
-    LOOK_AHEAD = 12
+    LOOK_AHEAD = 10
 
     def __init__(self, waypoints, upsample = 1):
         self._path = SmoothPath.init(waypoints)
@@ -261,7 +261,8 @@ def progress_reward_factor(params):
     progress = params['progress']
 
     # Total num of steps we want the car to finish the lap, it will vary depends on the track length
-    TOTAL_NUM_STEPS = 700
+    # maybe 500, since track length is 354
+    TOTAL_NUM_STEPS = 500
 
     # Initialize the reward with typical value
     factor = 1.0
