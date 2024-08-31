@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.07*0.45*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.07*0.65*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -59,13 +59,19 @@ class Path:
     MAX_SPEED = 4.0
     LOOK_AHEAD = 10
 
+    MAKE_SMOOTH = True
+    UPSAMPLE    = False
+
     def __init__(self, waypoints, upsample = 1):
-        self._path = SmoothPath.init(waypoints)
-        if upsample>1:
+        if self.MAKE_SMOOTH:
+            self._path = SmoothPath.init(waypoints)
+        else:
+            self._path = waypoints
+        if upsample>1 and self.UPSAMPLE:
             self._path = Path.up_sample( self._path, upsample )
 
     def get(self):
-        return self._path
+        return self._path.tolist() if hasattr( self._path, 'tolist' ) else self._path
 
     @staticmethod
     def up_sample(waypoints, factor = 2):
