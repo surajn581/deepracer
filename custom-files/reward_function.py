@@ -276,32 +276,41 @@ def progress_reward_factor(params):
 
     return float(factor)
     
+# def reward_function(params):
+
+#     print('-'*100)
+#     print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
+#     print('-'*100)
+
+#     path_object = Path( params['waypoints'], 2)
+
+#     off_track_penalty = -2.0
+#     if path_object.optimal_speed(params) <= 2.5:
+#         off_track_penalty = -5.0
+
+#     if params["is_offtrack"] or params["is_crashed"]:
+#         return off_track_penalty
+    
+#     distance_reward = path_object.on_track_reward( params )
+#     steering_reward = SteeringUtils.reward( params )
+#     speed_reward    = path_object.optimal_speed_reward( params )
+
+#     # if path_object.optimal_speed(params) <= 2:
+#     #     steering_reward = 1.5*steering_reward
+
+#     reward = steering_reward + speed_reward + distance_reward
+#     factor = progress_reward_factor(params)
+#     reward = reward*factor
+
+#     print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'progress factor: ', factor, 'total: ', reward)
+
+#     return reward
+
 def reward_function(params):
 
-    print('-'*100)
-    print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
-    print('-'*100)
-
-    path_object = Path( params['waypoints'], 2)
-
-    off_track_penalty = -2.0
-    if path_object.optimal_speed(params) <= 2.5:
-        off_track_penalty = -5.0
-
-    if params["is_offtrack"] or params["is_crashed"]:
-        return off_track_penalty
-    
-    distance_reward = path_object.on_track_reward( params )
-    steering_reward = SteeringUtils.reward( params )
-    speed_reward    = path_object.optimal_speed_reward( params )
-
-    # if path_object.optimal_speed(params) <= 2:
-    #     steering_reward = 1.5*steering_reward
-
-    reward = steering_reward + speed_reward + distance_reward
-    factor = progress_reward_factor(params)
-    reward = reward*factor
-
-    print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'progress factor: ', factor, 'total: ', reward)
-
-    return reward
+    if params["all_wheels_on_track"] and params["steps"] > 0:
+        reward = ((params["progress"] / params["steps"]) * 100) + (params["speed"]**2)
+    else:
+        reward = 0.01
+        
+    return float(reward)
