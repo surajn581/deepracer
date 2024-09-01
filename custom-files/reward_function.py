@@ -57,7 +57,7 @@ class Path:
 
     MIN_SPEED = 1.4
     MAX_SPEED = 4.0
-    LOOK_AHEAD = 10
+    LOOK_AHEAD = 20
 
     MAKE_SMOOTH = True
     UPSAMPLE    = False
