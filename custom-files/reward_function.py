@@ -270,8 +270,8 @@ class SteeringUtils:
         ideal_aangle = SteeringUtils.right_steering(params)
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/60.0
-        reward = 1 - diff
-        return max(reward, 1e-3)
+        reward = 0.5 - diff
+        return max(reward, 1e-3)*0.5
     
 def progress_reward_factor(params):
     # Read input variable
