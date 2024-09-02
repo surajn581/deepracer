@@ -56,7 +56,7 @@ class SmoothPath:
 class Path:
 
     MIN_SPEED = 1.2
-    MAX_SPEED = 5.5
+    MAX_SPEED = 5.0
     MAX_SPEED_FOR_REWARD = 4.0
     LOOK_AHEAD = 10
 
@@ -289,7 +289,7 @@ def progress_reward_factor(params):
         return 1
 
     # Give additional reward if the car pass every 100 steps faster than expected
-    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
+    if (steps % 50) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
         factor = factor*1.5
 
     return float(factor)
