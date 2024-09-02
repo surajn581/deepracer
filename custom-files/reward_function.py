@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.07*0.55*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.07*0.65*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -55,9 +55,10 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.2
-    MAX_SPEED = 4.0
-    LOOK_AHEAD = 10
+    MIN_SPEED = 1.3
+    MAX_SPEED = 5.0
+    MAX_SPEED_FOR_REWARD = 4.0
+    LOOK_AHEAD = 12
 
     MAKE_SMOOTH = True
     UPSAMPLE    = False
@@ -102,8 +103,8 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = max(1e-3, 1 - (abs(distance)/(params['track_width'])))
-        return max(reward, 1e-3)
+        reward = max(1e-3, 0.5 - (abs(distance)/(params['track_width'])))
+        return max(reward, 1e-3)*0.5
     
     def optimal_speed(self, params):
         optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD )
@@ -114,7 +115,7 @@ class Path:
 
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
-        diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED-Path.MIN_SPEED)
+        diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED_FOR_REWARD-Path.MIN_SPEED)
         reward = max(1e-3, 0.5 - diff)*2
         return reward
 class SpeedUtils:
