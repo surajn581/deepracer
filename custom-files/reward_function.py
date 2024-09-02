@@ -55,10 +55,10 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.3
-    MAX_SPEED = 5.0
+    MIN_SPEED = 1.2
+    MAX_SPEED = 5.5
     MAX_SPEED_FOR_REWARD = 4.0
-    LOOK_AHEAD = 12
+    LOOK_AHEAD = 10
 
     MAKE_SMOOTH = True
     UPSAMPLE    = False
@@ -157,8 +157,10 @@ class SpeedUtils:
         return [index_car, index_1, index_2]
 
     @staticmethod
-    def optimal_velocity(track, min_speed, max_speed, look_ahead_points):
-        if SpeedUtils.OPTIMAL_VELOCITES:
+    def optimal_velocity(track, min_speed, max_speed, look_ahead_points, useCache = True):
+        if not useCache and SpeedUtils.OPTIMAL_VELOCITES:
+            print('useCache is False, optimal speed will be recalculated')
+        if SpeedUtils.OPTIMAL_VELOCITES and useCache:
             return SpeedUtils.OPTIMAL_VELOCITES
 
         # Calculate the radius for every point of the track
@@ -202,13 +204,10 @@ class SpeedUtils:
             
             new_velocity = []
             rev_v = velocity_lookahead[::-1]
-            for i, vel in enumerate(rev_v, LOOK_AHEAD_POINTS):
+            rev_v = [min(v, Path.MAX_SPEED_FOR_REWARD) for v in rev_v ]
+            for i, _ in enumerate(rev_v, LOOK_AHEAD_POINTS):
                 meanN = np.mean(rev_v[i-LOOK_AHEAD_POINTS:i])
-                if vel > 2.1 and vel >= meanN:
-                    new_velocity.append(meanN)
-                else:
-                    new_velocity.append(vel)
-
+                new_velocity.append(meanN)
             new_velocity = new_velocity[::-1]
 
             SpeedUtils.OPTIMAL_VELOCITES = new_velocity
