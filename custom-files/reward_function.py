@@ -56,8 +56,8 @@ class SmoothPath:
 class Path:
 
     MIN_SPEED = 1.2
-    MAX_SPEED = 5.0
-    MAX_SPEED_FOR_REWARD = 4.5
+    MAX_SPEED = 5.5
+    MAX_SPEED_FOR_REWARD = 4.0
     LOOK_AHEAD = 10
 
     MAKE_SMOOTH = True
