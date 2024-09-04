@@ -260,7 +260,7 @@ class SteeringUtils:
     @staticmethod
     def right_steering(params):
         current_point = ( params['x'], params['y'] )
-        target_point = Path(params['waypoints'], 2).closest_within( current_point, 0.9*params['track_width'] )
+        target_point = Path(params['waypoints'], 0).closest_within( current_point, 1.05*params['track_width'] )
         path_angle = Utils.angle_between_points(current_point, target_point)
         steering_angle = path_angle - params['heading']
         return Utils.normalize_angle(steering_angle)
@@ -269,7 +269,7 @@ class SteeringUtils:
     def reward(params):
         ideal_aangle = SteeringUtils.right_steering(params)
         current_angle = params['steering_angle']
-        diff = abs(current_angle - ideal_aangle)/30.0
+        diff = abs(current_angle - ideal_aangle)/60.0
         reward = 0.5 - diff
         return max(reward, 1e-3)*2
     
