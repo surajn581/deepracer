@@ -55,10 +55,10 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.2
+    MIN_SPEED = 1.25
     MAX_SPEED = 5.5
     MAX_SPEED_FOR_REWARD = 4.0
-    LOOK_AHEAD = 10
+    LOOK_AHEAD = 9
 
     MAKE_SMOOTH = True
     UPSAMPLE    = False
@@ -85,10 +85,10 @@ class Path:
         n = n or len(self._path)
         distances = [ Utils.distance(point, path_point) for path_point in self._path ]
         offset = distances.index( min(distances) )
-        path = [ self._path[ (i+offset)%len(self._path) ] for i in range( len(self._path) )  ]
-        return path[:n]
+        path = [ self._path[ (i+offset)%len(self._path) ] for i in range( n )  ]
+        return path
 
-    def closest_within(self, point, threshold = 0.9*1.07):
+    def closest_within(self, point, threshold = 1*1.07):
         closest = self.closest(point, len(self._path))
         for close_point in closest:
             if Utils.distance( point, close_point ) > threshold:
@@ -103,8 +103,8 @@ class Path:
     def on_track_reward(self, params):
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
-        reward = max(1e-3, 1 - (abs(distance)/(params['track_width'])))
-        return max(reward, 1e-3)
+        reward = max(1e-3, 0.5 - (abs(distance)/(params['track_width'])))
+        return max(reward, 1e-3)*2
     
     def optimal_speed(self, params):
         optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD )
@@ -115,7 +115,7 @@ class Path:
 
     def optimal_speed_reward(self, params):
         optimal_speed = self.optimal_speed(params)
-        diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED-Path.MIN_SPEED)
+        diff = abs( params['speed'] - optimal_speed )/(Path.MAX_SPEED_FOR_REWARD-Path.MIN_SPEED)
         reward = max(1e-3, 0.5 - diff)*2
         return reward
 class SpeedUtils:
@@ -208,7 +208,6 @@ class SpeedUtils:
             for i, _ in enumerate(rev_v, LOOK_AHEAD_POINTS):
                 meanN = np.mean(rev_v[i-LOOK_AHEAD_POINTS:i])
                 new_velocity.append(meanN)
-
             new_velocity = new_velocity[::-1]
 
             SpeedUtils.OPTIMAL_VELOCITES = new_velocity
@@ -261,7 +260,7 @@ class SteeringUtils:
     @staticmethod
     def right_steering(params):
         current_point = ( params['x'], params['y'] )
-        target_point = Path(params['waypoints'], 2).closest_within( current_point, 0.9*params['track_width'] )
+        target_point = Path(params['waypoints'], 0).closest_within( current_point, 1.05*params['track_width'] )
         path_angle = Utils.angle_between_points(current_point, target_point)
         steering_angle = path_angle - params['heading']
         return Utils.normalize_angle(steering_angle)
@@ -271,8 +270,8 @@ class SteeringUtils:
         ideal_aangle = SteeringUtils.right_steering(params)
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/60.0
-        reward = 1 - diff
-        return max(reward, 1e-3)
+        reward = 0.5 - diff
+        return max(reward, 1e-3)*2
     
 def progress_reward_factor(params):
     # Read input variable
@@ -295,284 +294,44 @@ def progress_reward_factor(params):
 
     return float(factor)
     
-# def reward_function(params):
+def _reward_function(params):
 
-#     print('-'*100)
-#     print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
-#     print('-'*100)
+    print('-'*100)
+    print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
+    print('-'*100)
 
-#     path_object = Path( params['waypoints'], 2)
+    path_object = Path( params['waypoints'], 2)
 
-#     off_track_penalty = -2.0
-#     if path_object.optimal_speed(params) <= 2.5:
-#         off_track_penalty = -5.0
+    off_track_penalty = -2.0
+    if path_object.optimal_speed(params) <= 2.5:
+        off_track_penalty = -5.0
 
-#     if params["is_offtrack"] or params["is_crashed"]:
-#         return off_track_penalty
+    if params["is_offtrack"] or params["is_crashed"]:
+        return off_track_penalty
     
-#     distance_reward = path_object.on_track_reward( params )
-#     steering_reward = SteeringUtils.reward( params )
-#     speed_reward    = path_object.optimal_speed_reward( params )
+    distance_reward = path_object.on_track_reward( params )
+    steering_reward = SteeringUtils.reward( params )
+    speed_reward    = path_object.optimal_speed_reward( params )
 
-#     # if path_object.optimal_speed(params) <= 2:
-#     #     steering_reward = 1.5*steering_reward
+    # if path_object.optimal_speed(params) <= 2:
+    #     steering_reward = 1.5*steering_reward
 
-#     reward = steering_reward + speed_reward + distance_reward
-#     factor = progress_reward_factor(params)
-#     reward = reward*factor
+    reward = steering_reward + speed_reward + distance_reward
+    factor = progress_reward_factor(params)
+    reward = reward*factor
 
-#     print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'progress factor: ', factor, 'total: ', reward)
+    print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'progress factor: ', factor, 'total: ', reward)
 
-#     return reward
-
-# def reward_function(params):
-
-#     if params["all_wheels_on_track"] and params["steps"] > 0:
-#         reward = ((params["progress"] / params["steps"]) * 100) + (params["speed"]**2)
-#     else:
-#         reward = 0.01
-        
-#     return float(reward)
-
-import math
-
-
-class Reward:
-    EVERYTHING = None
-    def __init__(self, verbose=False):
-        self.first_racingpoint_index = None
-        self.verbose = verbose
-
-    def reward_function(self, params):
-
-        # Import package (needed for heading)
-        import math
-
-        ################## HELPER FUNCTIONS ###################
-
-        def dist_2_points(x1, x2, y1, y2):
-            return abs(abs(x1-x2)**2 + abs(y1-y2)**2)**0.5
-
-        def closest_2_racing_points_index(racing_coords, car_coords):
-
-            # Calculate all distances to racing points
-            distances = []
-            for i in range(len(racing_coords)):
-                distance = dist_2_points(x1=racing_coords[i][0], x2=car_coords[0],
-                                         y1=racing_coords[i][1], y2=car_coords[1])
-                distances.append(distance)
-
-            # Get index of the closest racing point
-            closest_index = distances.index(min(distances))
-
-            # Get index of the second closest racing point
-            distances_no_closest = distances.copy()
-            distances_no_closest[closest_index] = 999
-            second_closest_index = distances_no_closest.index(
-                min(distances_no_closest))
-
-            return [closest_index, second_closest_index]
-
-        def dist_to_racing_line(closest_coords, second_closest_coords, car_coords):
-            
-            # Calculate the distances between 2 closest racing points
-            a = abs(dist_2_points(x1=closest_coords[0],
-                                  x2=second_closest_coords[0],
-                                  y1=closest_coords[1],
-                                  y2=second_closest_coords[1]))
-
-            # Distances between car and closest and second closest racing point
-            b = abs(dist_2_points(x1=car_coords[0],
-                                  x2=closest_coords[0],
-                                  y1=car_coords[1],
-                                  y2=closest_coords[1]))
-            c = abs(dist_2_points(x1=car_coords[0],
-                                  x2=second_closest_coords[0],
-                                  y1=car_coords[1],
-                                  y2=second_closest_coords[1]))
-
-            # Calculate distance between car and racing line (goes through 2 closest racing points)
-            # try-except in case a=0 (rare bug in DeepRacer)
-            try:
-                distance = abs(-(a**4) + 2*(a**2)*(b**2) + 2*(a**2)*(c**2) -
-                               (b**4) + 2*(b**2)*(c**2) - (c**4))**0.5 / (2*a)
-            except:
-                distance = b
-
-            return distance
-
-        # Calculate which one of the closest racing points is the next one and which one the previous one
-        def next_prev_racing_point(closest_coords, second_closest_coords, car_coords, heading):
-
-            # Virtually set the car more into the heading direction
-            heading_vector = [math.cos(math.radians(
-                heading)), math.sin(math.radians(heading))]
-            new_car_coords = [car_coords[0]+heading_vector[0],
-                              car_coords[1]+heading_vector[1]]
-
-            # Calculate distance from new car coords to 2 closest racing points
-            distance_closest_coords_new = dist_2_points(x1=new_car_coords[0],
-                                                        x2=closest_coords[0],
-                                                        y1=new_car_coords[1],
-                                                        y2=closest_coords[1])
-            distance_second_closest_coords_new = dist_2_points(x1=new_car_coords[0],
-                                                               x2=second_closest_coords[0],
-                                                               y1=new_car_coords[1],
-                                                               y2=second_closest_coords[1])
-
-            if distance_closest_coords_new <= distance_second_closest_coords_new:
-                next_point_coords = closest_coords
-                prev_point_coords = second_closest_coords
-            else:
-                next_point_coords = second_closest_coords
-                prev_point_coords = closest_coords
-
-            return [next_point_coords, prev_point_coords]
-
-        def racing_direction_diff(closest_coords, second_closest_coords, car_coords, heading):
-
-            # Calculate the direction of the center line based on the closest waypoints
-            next_point, prev_point = next_prev_racing_point(closest_coords,
-                                                            second_closest_coords,
-                                                            car_coords,
-                                                            heading)
-
-            # Calculate the direction in radius, arctan2(dy, dx), the result is (-pi, pi) in radians
-            track_direction = math.atan2(
-                next_point[1] - prev_point[1], next_point[0] - prev_point[0])
-
-            # Convert to degree
-            track_direction = math.degrees(track_direction)
-
-            # Calculate the difference between the track direction and the heading direction of the car
-            direction_diff = abs(track_direction - heading)
-            if direction_diff > 180:
-                direction_diff = 360 - direction_diff
-
-            return direction_diff
-
-        #################### RACING LINE ######################
-
-        def getEverything(racing_track, min_speed = 1.2, max_speed = 5.5, lookahead = 10):
-            if Reward.EVERYTHING:
-                return Reward.EVERYTHING
-
-            def dist_2_points(x1, x2, y1, y2):
-                return abs(abs(x1-x2)**2 + abs(y1-y2)**2)**0.5
-
-            velocity =  SpeedUtils.optimal_velocity(racing_track, min_speed, max_speed, lookahead)
-
-            distance_to_prev = []
-            for i in range(len(racing_track)):
-                indexes = SpeedUtils.circle_indexes(racing_track, i, add_index_1=-1, add_index_2=0)[0:2]
-                coords = [racing_track[indexes[0]],racing_track[indexes[1]]]
-                dist_to_prev = dist_2_points(x1=coords[0][0], x2=coords[1][0], y1=coords[0][1], y2=coords[1][1])
-                distance_to_prev.append(dist_to_prev)
-                
-            time_to_prev = [(distance_to_prev[i]/velocity[i]) for i in range(len(racing_track))]
-
-            total_time = sum(time_to_prev)
-            print(f"Total time for track, if racing line and speeds are followed perfectly: {total_time} s")
-
-            # Now we have list with columns (x,y,speed,distance,time)
-            racing_track_everything = []
-            for i in range(len(racing_track)):
-                racing_track_everything.append([racing_track[i][0],
-                                                racing_track[i][1],
-                                                velocity[i],
-                                                time_to_prev[i]])
-            # Round to 5 decimals
-            racing_track_everything = np.around(racing_track_everything, 5).tolist()
-
-            Reward.EVERYTHING = racing_track_everything
-
-            return racing_track_everything
-
-        # Optimal racing line for the Spain track
-        # Each row: [x,y,speed,timeFromPreviousPoint]
-
-        racing_track = getEverything(Path(params['waypoints'], 0).get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD)
-
-        ################## INPUT PARAMETERS ###################
-
-        # Read all input parameters
-        x = params['x']
-        y = params['y']
-        heading = params['heading']
-        speed = params['speed']
-        track_width = params['track_width']
-
-        ############### OPTIMAL X,Y,SPEED,TIME ################
-
-        # Get closest indexes for racing line (and distances to all points on racing line)
-        closest_index, second_closest_index = closest_2_racing_points_index(
-            racing_track, [x, y])
-
-        # Get optimal [x, y, speed, time] for closest and second closest index
-        optimals = racing_track[closest_index]
-        optimals_second = racing_track[second_closest_index]
-
-        # Save first racingpoint of episode for later
-        if self.first_racingpoint_index is None:
-            self.first_racingpoint_index = closest_index
-
-        ################ REWARD AND PUNISHMENT ################
-
-        ## Define the default reward ##
-        reward = 1
-
-        ## Reward if car goes close to optimal racing line ##
-        DISTANCE_MULTIPLE = 1
-        dist = dist_to_racing_line(optimals[0:2], optimals_second[0:2], [x, y])
-        distance_reward = max(1e-3, 1 - (dist/(track_width*0.5)))
-        reward += distance_reward * DISTANCE_MULTIPLE
-
-        ## Reward if speed is close to optimal speed ##
-        SPEED_DIFF_NO_REWARD = 1
-        SPEED_MULTIPLE = 2
-        speed_diff = abs(optimals[2]-speed)
-        if speed_diff <= SPEED_DIFF_NO_REWARD:
-            # we use quadratic punishment (not linear) bc we're not as confident with the optimal speed
-            # so, we do not punish small deviations from optimal speed
-            speed_reward = (1 - (speed_diff/(SPEED_DIFF_NO_REWARD))**2)**2
-        else:
-            speed_reward = 0
-        reward += speed_reward * SPEED_MULTIPLE
-
-        # Zero reward if obviously wrong direction (e.g. spin)
-        direction_diff = racing_direction_diff(
-            optimals[0:2], optimals_second[0:2], [x, y], heading)
-        if direction_diff > 30:
-            reward = 1e-3
-            
-        # Zero reward of obviously too slow
-        speed_diff_zero = optimals[2]-speed
-        if speed_diff_zero > 0.5:
-            reward = 1e-3
-
-        progress_factor = progress_reward_factor(params)
-
-        reward = reward*progress_factor
-
-        ####################### VERBOSE #######################
-        
-        if True:
-            print("Closest index: %i" % closest_index)
-            print("Distance to racing line: %f" % dist)
-            print("=== Distance reward (w/out multiple): %f ===" % (distance_reward))
-            print("Optimal speed: %f" % optimals[2])
-            print("Speed difference: %f" % speed_diff)
-            print("=== Speed reward (w/out multiple): %f ===" % speed_reward)
-            print("Direction difference: %f" % direction_diff)
-            
-        #################### RETURN REWARD ####################
-        
-        # Always return a float value
-        return float(reward)
-
-
-reward_object = Reward() # add parameter verbose=True to get noisy output for testing
-
+    return reward
 
 def reward_function(params):
-    return reward_object.reward_function(params)
+
+    if params["is_offtrack"] or params["is_crashed"]:
+        reward = -1 * params["speed"]**2
+
+    if params["steps"] > 0:
+        reward = ((params["progress"] / params["steps"]) * 100) + (params["speed"]**2)
+    else:
+        reward = 1e-3
+
+    return float(reward)
