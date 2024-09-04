@@ -56,7 +56,7 @@ class SmoothPath:
 class Path:
 
     MIN_SPEED = 1.2
-    MAX_SPEED = 5.0
+    MAX_SPEED = 5.5
     MAX_SPEED_FOR_REWARD = 4.0
     LOOK_AHEAD = 10
 
@@ -280,7 +280,7 @@ def progress_reward_factor(params):
 
     # Total num of steps we want the car to finish the lap, it will vary depends on the track length
     # maybe 500, since track length is 354
-    TOTAL_NUM_STEPS = 400
+    TOTAL_NUM_STEPS = 350
 
     # Initialize the reward with typical value
     factor = 1.0
