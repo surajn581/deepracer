@@ -85,10 +85,10 @@ class Path:
         n = n or len(self._path)
         distances = [ Utils.distance(point, path_point) for path_point in self._path ]
         offset = distances.index( min(distances) )
-        path = [ self._path[ (i+offset)%len(self._path) ] for i in range( len(self._path) )  ]
-        return path[:n]
+        path = [ self._path[ (i+offset)%len(self._path) ] for i in range( n )  ]
+        return path
 
-    def closest_within(self, point, threshold = 0.9*1.07):
+    def closest_within(self, point, threshold = 1*1.07):
         closest = self.closest(point, len(self._path))
         for close_point in closest:
             if Utils.distance( point, close_point ) > threshold:
