@@ -55,10 +55,10 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.25
-    MAX_SPEED = 5.5
+    MIN_SPEED = 1.2
+    MAX_SPEED = 5.0
     MAX_SPEED_FOR_REWARD = 4.0
-    LOOK_AHEAD = 9
+    LOOK_AHEAD = 10
 
     MAKE_SMOOTH = True
     UPSAMPLE    = False
@@ -85,10 +85,10 @@ class Path:
         n = n or len(self._path)
         distances = [ Utils.distance(point, path_point) for path_point in self._path ]
         offset = distances.index( min(distances) )
-        path = [ self._path[ (i+offset)%len(self._path) ] for i in range( n )  ]
-        return path
+        path = [ self._path[ (i+offset)%len(self._path) ] for i in range( len(self._path) )  ]
+        return path[:n]
 
-    def closest_within(self, point, threshold = 1*1.07):
+    def closest_within(self, point, threshold = 0.9*1.07):
         closest = self.closest(point, len(self._path))
         for close_point in closest:
             if Utils.distance( point, close_point ) > threshold:
@@ -104,7 +104,7 @@ class Path:
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
         reward = max(1e-3, 0.5 - (abs(distance)/(params['track_width'])))
-        return max(reward, 1e-3)*2
+        return max(reward, 1e-3)*0.5
     
     def optimal_speed(self, params):
         optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD )
@@ -260,7 +260,7 @@ class SteeringUtils:
     @staticmethod
     def right_steering(params):
         current_point = ( params['x'], params['y'] )
-        target_point = Path(params['waypoints'], 0).closest_within( current_point, 1.05*params['track_width'] )
+        target_point = Path(params['waypoints'], 2).closest_within( current_point, 0.9*params['track_width'] )
         path_angle = Utils.angle_between_points(current_point, target_point)
         steering_angle = path_angle - params['heading']
         return Utils.normalize_angle(steering_angle)
@@ -271,7 +271,7 @@ class SteeringUtils:
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/60.0
         reward = 0.5 - diff
-        return max(reward, 1e-3)*2
+        return max(reward, 1e-3)*0.5
     
 def progress_reward_factor(params):
     # Read input variable
@@ -289,12 +289,12 @@ def progress_reward_factor(params):
         return 1
 
     # Give additional reward if the car pass every 100 steps faster than expected
-    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
+    if (steps % 50) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
         factor = factor*1.5
 
     return float(factor)
     
-def _reward_function(params):
+def reward_function(params):
 
     print('-'*100)
     print('parmas: ', {key: value for key, value in params.items() if key!='waypoints'})
@@ -323,15 +323,3 @@ def _reward_function(params):
     print('steering_reward: ', steering_reward, 'distance_reward: ', distance_reward, 'speed_reward: ', speed_reward, 'progress factor: ', factor, 'total: ', reward)
 
     return reward
-
-def reward_function(params):
-
-    if params["is_offtrack"] or params["is_crashed"]:
-        reward = -1 * params["speed"]**2
-
-    if params["steps"] > 0:
-        reward = ((params["progress"] / params["steps"]) * 100) + (params["speed"]**2)
-    else:
-        reward = 1e-3
-
-    return float(reward)
