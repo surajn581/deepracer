@@ -55,7 +55,7 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.1
+    MIN_SPEED = 1.25
     MAX_SPEED = 5.5
     MAX_SPEED_FOR_REWARD = 4.0
     LOOK_AHEAD = 8
@@ -104,7 +104,7 @@ class Path:
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
         reward = max(1e-3, 0.5 - (abs(distance)/(params['track_width'])))
-        return max(reward, 1e-3)*0.5
+        return max(reward, 1e-3)*2
     
     def optimal_speed(self, params):
         optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD )
@@ -271,7 +271,7 @@ class SteeringUtils:
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/60.0
         reward = 0.5 - diff
-        return max(reward, 1e-3)*0.5
+        return max(reward, 1e-3)*2
     
 def progress_reward_factor(params):
     # Read input variable
@@ -280,7 +280,7 @@ def progress_reward_factor(params):
 
     # Total num of steps we want the car to finish the lap, it will vary depends on the track length
     # maybe 500, since track length is 354
-    TOTAL_NUM_STEPS = 480
+    TOTAL_NUM_STEPS = 400
 
     # Initialize the reward with typical value
     factor = 1.0
@@ -289,7 +289,7 @@ def progress_reward_factor(params):
         return 1
 
     # Give additional reward if the car pass every 100 steps faster than expected
-    if (steps % 50) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
+    if (steps % 100) == 0 and progress > (steps / TOTAL_NUM_STEPS) * 100 :
         factor = factor*1.5
 
     return float(factor)
