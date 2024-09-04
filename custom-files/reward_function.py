@@ -55,8 +55,8 @@ class SmoothPath:
         return new_line
 class Path:
 
-    MIN_SPEED = 1.25
-    MAX_SPEED = 5.5
+    MIN_SPEED = 1.2
+    MAX_SPEED = 5.2
     MAX_SPEED_FOR_REWARD = 4.0
     LOOK_AHEAD = 8
 
