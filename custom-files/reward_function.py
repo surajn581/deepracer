@@ -23,7 +23,7 @@ class SmoothPath:
         return math.hypot(delta_x, delta_y)
 
     @staticmethod
-    def smoothen(center_line, max_offset = 1.07*0.65*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
+    def smoothen(center_line, max_offset = 1.07*0.85*0.5, pp=0.10, p=0.05, c=0.70, n=0.05, nn=0.10, iterations=72, skip_step=1):
         if SmoothPath.PATH:
             return SmoothPath.PATH
         
@@ -104,7 +104,7 @@ class Path:
         current_point = ( params['x'], params['y'] )
         distance = self.distance( current_point )
         reward = max(1e-3, 0.5 - (abs(distance)/(params['track_width'])))
-        return max(reward, 1e-3)*0.5
+        return max(reward, 1e-3)*2
     
     def optimal_speed(self, params):
         optimal_velocities = SpeedUtils.optimal_velocity( self.get(), Path.MIN_SPEED, Path.MAX_SPEED, Path.LOOK_AHEAD )
@@ -271,7 +271,7 @@ class SteeringUtils:
         current_angle = params['steering_angle']
         diff = abs(current_angle - ideal_aangle)/60.0
         reward = 0.5 - diff
-        return max(reward, 1e-3)*0.5
+        return max(reward, 1e-3)*2
     
 def progress_reward_factor(params):
     # Read input variable
