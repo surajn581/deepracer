@@ -302,9 +302,9 @@ def reward_function(params):
 
     path_object = Path( params['waypoints'], 2)
 
-    off_track_penalty = -2.0
-    if path_object.optimal_speed(params) <= 2.5:
-        off_track_penalty = -5.0
+    off_track_penalty = -1.0
+    if path_object.optimal_speed(params) <= 1.8:
+        off_track_penalty = -2.0
 
     if params["is_offtrack"] or params["is_crashed"]:
         return off_track_penalty
