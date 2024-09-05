@@ -56,7 +56,7 @@ class SmoothPath:
 class Path:
 
     MIN_SPEED = 1.2
-    MAX_SPEED = 6.0
+    MAX_SPEED = 5.5
     MAX_SPEED_FOR_REWARD = 4.0
     LOOK_AHEAD = 8
 
@@ -311,7 +311,7 @@ def reward_function(params):
     
     distance_reward = path_object.on_track_reward( params )
     steering_reward = SteeringUtils.reward( params )
-    speed_reward    = path_object.optimal_speed_reward( params )
+    speed_reward    = path_object.optimal_speed_reward( params )*1.5
 
     # if path_object.optimal_speed(params) <= 2:
     #     steering_reward = 1.5*steering_reward
